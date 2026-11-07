@@ -7,13 +7,9 @@
 - 执行端：`service/browser/host.ts`，`playwright-core` 复用本机已安装的 Chrome，持久化 profile
 - 内核（loop、上下文/记忆/压缩、工具注册与校验、provider 适配）来自作者的另一个扩展形态项目 tChrome；本项目替换的是浏览器执行层，工具 schema 与语义保持一致
 
-录屏：`docs/demo-3x.mp4`（2 分 01 秒，2748×1840，20MB；原始录制 37 分 51 秒，成片把静止画面加速、操作画面保留细节后压到 3 倍速）
-
-https://github.com/huyudonglove/kestrel/raw/main/docs/demo-3x.mp4
-
-<video src="https://github.com/huyudonglove/kestrel/raw/main/docs/demo-3x.mp4" controls width="100%"></video>
-
 [![点此播放录屏](docs/demo-poster.jpg)](docs/demo-3x.mp4)
+
+录屏 `docs/demo-3x.mp4`：2 分 01 秒，2748×1840，20MB。原始录制 37 分 51 秒，成片把静止画面加速、操作画面保留细节后压到 3 倍速。
 
 ---
 
