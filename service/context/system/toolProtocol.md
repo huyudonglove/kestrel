@@ -60,7 +60,7 @@ effects 是可选证据，不会自动改写 ok；缺少字段只说明没捕获
 - local_run 返回 heartbeat=true 与 processId，用 local_process_status 查询、local_process_stop 停止。
 - send_http、send_http_batch、web_search、tavily_search、execute_javascript 返回 heartbeat=true 与 jobId，用 job_status 查询、job_stop 停止。
 
-[硬] 浏览器侧的 execute_javascript 单次执行有 60 秒硬上限（扩展侧固定常量；heartbeatSec 只影响返回时机，不能延长它）：超时返回 faultCode=tool_timeout、execution.state=unknown，原执行不会取消，页面里的脚本仍在继续跑完，只是结果回不到服务。需要更久时切成多次调用，或让脚本把进度写进页面（window / localStorage）后分次读取；被超时后先只读核对状态，不要盲目重放。
+[硬] 浏览器侧的 execute_javascript 单次执行有 60 秒硬上限（执行端固定常量；heartbeatSec 只影响返回时机，不能延长它）：超时返回 faultCode=tool_timeout、execution.state=unknown，原执行不会取消，页面里的脚本仍在继续跑完，只是结果回不到服务。需要更久时切成多次调用，或让脚本把进度写进页面（window / localStorage）后分次读取；被超时后先只读核对状态，不要盲目重放。
 
 文件路径、cwd 和产物目录遵守 <execution>。
 </purpose>

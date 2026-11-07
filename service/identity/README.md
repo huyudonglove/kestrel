@@ -4,7 +4,7 @@
 
 - `existing`：会话和资料库使用已有持久水位分配，删除记录不回退。
 - `counter`：由 `runtime/ids.ts` 的 `allocateRecordId` 先持久保留编号，再发布记录。按 catalog 的范围保存在服务数据目录或会话目录的 `id-counters.json`，失败留空号，不复用已分配编号。
-- `browser-counter`：浏览器自有元素/区域编号使用扩展持久水位，页面间不复用，DOM 节点与编号稳定关联。
+- `browser-counter`：浏览器自有元素/区域编号由执行端在页面内分配，页面重载或换标签后重新从 e_01 开始，DOM 节点与编号稳定关联。
 - 工具调用进入 Runtime 时统一分配 callId；Provider 原始 ID 映射只保存于 provider 日志。当前请求是无状态 System/User 装配，不向 Provider 回传本地 callId 充当协议调用 ID。
 - 每次查询由 Runtime 分配 queryId，查询结果复用模块原记录结构，sourceCallId 关联发起调用。
 

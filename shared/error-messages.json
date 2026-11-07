@@ -180,8 +180,8 @@
     "recovery": "user_action"
   },
   "browser_unavailable": {
-    "model": "浏览器连接不可用。请检查扩展和浏览器连接状态。",
-    "user": "浏览器未连接，请检查扩展是否正常运行。",
+    "model": "浏览器执行端不可用。请检查本机 Chrome 能否启动、执行端是否报错。",
+    "user": "浏览器没有连上，请确认本机 Chrome 可以正常启动。",
     "recovery": "user_action"
   },
   "service_unreachable": {
@@ -300,8 +300,8 @@
     "recovery": "user_action"
   },
   "executor_version_mismatch": {
-    "model": "扩展执行器版本与服务不匹配。重新构建并加载扩展后再试。",
-    "user": "浏览器扩展版本与服务不匹配，请重新构建并加载扩展。",
+    "model": "执行端版本与服务记录不一致。确认执行端已更新后重启服务再试。",
+    "user": "浏览器执行端版本与服务不匹配，请重启服务后再试。",
     "recovery": "user_action"
   },
   "invalid_mode": {

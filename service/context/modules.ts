@@ -230,7 +230,7 @@ export function systemTextFromModules(
   return parts.join("\n\n");
 }
 
-/** Model-facing data root: same default as runtime store, overridable via TCHROME_DATA. */
+/** Model-facing data root: same default as runtime store, overridable via KESTREL_DATA. */
 function defaultDataDirLabel(): string {
   return process.env.KESTREL_DATA || join(homedir(), "Library", "Application Support", "Kestrel");
 }

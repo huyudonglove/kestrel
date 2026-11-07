@@ -30,7 +30,7 @@
           "type": "string",
           "minLength": 1,
           "pattern": "\\S",
-          "description": "更新后的归属项目（项目目录名，如 tChrome）；省略时保持原状。仅项目记忆按 scope 决定是否注入"
+          "description": "更新后的归属项目（项目目录名，如 Kestrel）；省略时保持原状。仅项目记忆按 scope 决定是否注入"
         }
       },
       "required": [
@@ -77,7 +77,7 @@
               "type": "string",
               "minLength": 1,
               "pattern": "\\S",
-              "description": "更新后的归属项目（项目目录名，如 tChrome）；省略时保持原状。仅项目记忆按 scope 决定是否注入"
+              "description": "更新后的归属项目（项目目录名，如 Kestrel）；省略时保持原状。仅项目记忆按 scope 决定是否注入"
             }
           }
         }

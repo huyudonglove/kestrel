@@ -1,7 +1,7 @@
 import { allocateRecordId } from "./ids.ts";
 import type { BrowserHost, BrowserResult, CurrentTabs } from "../types.ts";
 
-/** Browser tools wait for the extension; a vanished executor must not hang the turn. */
+/** Browser tools wait for the executor; a vanished one must not hang the turn. */
 export const BRIDGE_TIMEOUT_MS = 120_000;
 
 export type ToolRequest = {
@@ -11,9 +11,9 @@ export type ToolRequest = {
 };
 
 export type ToolBridge = BrowserHost & {
-  /** All unclaimed requests; the extension may execute several at once. */
+  /** All unclaimed requests; the executor may run several at once. */
   list(): ToolRequest[];
-  /** Requests handed to the extension; every returned request is marked as dispatched. */
+  /** Requests handed to the executor; every returned request is marked as dispatched. */
   listForDispatch(): ToolRequest[];
   resolve(id: string, result: BrowserResult): boolean;
   abort(scope?: string): void;
@@ -24,7 +24,7 @@ type Pending = {
   request: ToolRequest;
   scope?: string;
   done: (result: BrowserResult) => void;
-  /** True once the extension has been handed this request to execute. */
+  /** True once the executor has been handed this request to execute. */
   dispatched?: boolean;
 };
 
@@ -44,7 +44,7 @@ export function createToolBridge(dataDir: string): ToolBridge {
       if (settled) return;
       settled = true;
       // A request stays queued until it settles, so "still listed" cannot separate a
-      // request the extension never picked up from one it picked up and never answered.
+      // request the executor never picked up from one it picked up and never answered.
       // The dispatch marker is what makes those two cases distinguishable.
       done(dispatched()
         ? {
@@ -52,14 +52,14 @@ export function createToolBridge(dataDir: string): ToolBridge {
             faultCode: "tool_execution_failed",
             executionState: "claimed_no_result",
             recovery: "inspect_state",
-            error: `浏览器执行等待超时（${BRIDGE_TIMEOUT_MS}ms）：扩展已领取该请求但未回传结果，操作可能已经生效、页面可能已经变化。请先核对当前页面与已保存记录，不要直接重放。`,
+            error: `浏览器执行等待超时（${BRIDGE_TIMEOUT_MS}ms）：执行端已领取该请求但未回传结果，操作可能已经生效、页面可能已经变化。请先核对当前页面与已保存记录，不要直接重放。`,
           }
         : {
             ok: false,
             faultCode: "tool_execution_failed",
             executionState: "not_claimed",
             recovery: "inspect_state",
-            error: `浏览器执行等待超时（${BRIDGE_TIMEOUT_MS}ms）：请求一直未被扩展领取（扩展可能未连接或已失联），页面很可能没有发生变化。`,
+            error: `浏览器执行等待超时（${BRIDGE_TIMEOUT_MS}ms）：请求一直未被执行端领取（执行端可能未连接或已失联），页面很可能没有发生变化。`,
           });
     }, BRIDGE_TIMEOUT_MS);
     return (result) => {

@@ -67,7 +67,7 @@ async function optionalWait(
   return null;
 }
 
-/** The extension arms the listener and enables Network before executing the click. */
+/** The executor arms the listener and enables Network before executing the click. */
 async function clickAndWait(host: BrowserHost, tabId: unknown, id: string, args: Record<string, unknown>, reason: string, frame: Record<string, unknown>) {
   const result = await host.execute("wait_response", {
     tabId, clickId: id, urlContains: args.waitUrlContains ?? args.urlContains,
@@ -103,8 +103,8 @@ async function resolveByRole(host: BrowserHost, tabId: unknown, reason: string, 
 }
 
 /**
- * Service-side compound browser steps. Each call sequences existing extension
- * Compose page primitives via one host bridge call.
+ * Service-side compound browser steps. Each call sequences existing browser
+ * page primitives through one host call.
  */
 export async function runCompoundTool(
   name: string,

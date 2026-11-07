@@ -50,7 +50,7 @@ export function readWidgetPage(dataDir: string, id: string): string | null {
   const path = join(widgetDir(dataDir), `${id}.html`);
   if (!existsSync(path)) return null;
   const page = readFileSync(path, "utf8");
-  // 读取时补上高度回传脚本：已保存的旧组件页也因此能让侧栏自适应高度。
+  // 读取时补上高度回传脚本：已保存的旧组件页也因此能让前端 iframe 自适应高度。
   if (page.includes(WIDGET_FIT_SCRIPT)) return page;
   const closing = page.lastIndexOf("</body>");
   return closing === -1

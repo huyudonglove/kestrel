@@ -274,6 +274,5 @@ bun run typecheck                      # tsc --noEmit
 
 - `see_zoom` / `set_zoom` / `emulate_device` 三个工具在执行端仍返回 `tool_not_implemented`
 - `executeTracked` 返回空 id，按 id 中止单个工具实际无效；会话级 `POST /stop` 可用（会 `host.abort(conversationId)`）
-- `/health` 里保留着从 tChrome 继承的 `extension.status = "unknown"`、`actualVersion` 为 `null` 等字段，不参与任何逻辑
+- `/health` 里保留着继承下来的 `extension.status = "unknown"`、`actualVersion` 为 `null` 等字段，不参与任何逻辑
 - 并发多会话没有做隔离验证，按单用户、单进程使用
-- `service/README.md` 是内核的原始文档，部分描述仍指向扩展形态与旧端口 18789，以本文件为准

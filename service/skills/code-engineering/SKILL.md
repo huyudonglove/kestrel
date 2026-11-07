@@ -30,12 +30,8 @@ SUMMARY: 代码修改与验证：定位必要证据，实施局部改动，用�
 
 | 命令 | 用途 |
 | --- | --- |
-| `bun run check:wiring` | 工具定义与接线一致：声明的工具都有 schema、没有孤儿 schema |
 | `bun run typecheck` | 全仓类型检查（tsc --noEmit） |
-| `bun run lint` | 毫秒级静态检查：语法错误，以及 no-debugger / no-var / no-empty-catch |
-| `bun test` | 全量测试；`bun run test:sub`、`bun run test:extension` 只跑对应目录 |
-| `bun run test:summary` | 测试结果的结构化汇总 |
-| `bun run check` | 以上各项加扩展构建，提交前的合并门禁 |
+| `bun test` | 全量测试（bun 内置 test runner） |
 
 有意的空 catch 要在同一行写明原因（例如 `} catch { /* 进程可能已自行退出 */ }`）；夹具文件可在首行用 `// lint-disable-file 规则名` 豁免，但不要为了让诊断闭嘴而删掉夹具本身。
 

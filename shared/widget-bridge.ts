@@ -1,6 +1,6 @@
-// 侧栏组件（<tchrome-widget>）的高度回传协议。
+// 前端组件（<tchrome-widget>）的高度回传协议。
 // 组件页由 service/widgets/store.ts 在读取时注入 WIDGET_FIT_SCRIPT；
-// 页面把自身文档高度 postMessage 给父页，extension/sidepanel/App.tsx 据此调整 iframe 高度。
+// 页面把自身文档高度 postMessage 给父页，前端据此调整 iframe 高度。
 // 两侧共用本模块，避免协议字符串各写一份而走偏。
 export const WIDGET_HEIGHT_MESSAGE = "tchrome-widget-height";
 export const WIDGET_DEFAULT_HEIGHT = 300;

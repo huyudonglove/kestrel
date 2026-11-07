@@ -14,9 +14,9 @@
 - `definitions/index.json`：动态工具的 browser / service 分类。
 - `definitions/groups.json`：常驻工具和初始动态工具分组。
 
-`registry.ts` 读取本模块定义。System `<environment>` 给出工具大类导航；`<baseTools>` 展示常驻能力导航，User `<tools>` 展示本会话已加载的动态能力导航；每项由工具名和 function.description 首句生成，完整调用说明与参数 schema 通过 tools[] 发送。`schema.ts` 校验调用，Runtime 对主 Agent 响应统一执行校验后调度。其他参数校验前按 schema 中明确声明的字段类型，将精确的 `"true"` / `"false"` 转为布尔值，将 JSON 数字字符串转为有限数字（绝对值不超过安全整数上限，integer 字段必须为安全整数）；嵌套对象和数组沿 properties/items 处理。转换后的参数通过原有校验后交给执行器；不补必填项、不转换文本、不把单值包装成数组，也不猜测联合分支的类型。`service/context/` 负责同一服务内的上下文装配。Chrome API 操作由 `extension/tools/` 的宿主执行器完成，经浏览器桥接收服务调度；工具注册和 schema 仍统一维护在本模块。工具返回结构化结果与 effects，`service/runtime/effects.ts` 统一应用状态和持久化。
+`registry.ts` 读取本模块定义。System `<environment>` 给出工具大类导航；`<baseTools>` 展示常驻能力导航，User `<tools>` 展示本会话已加载的动态能力导航；每项由工具名和 function.description 首句生成，完整调用说明与参数 schema 通过 tools[] 发送。`schema.ts` 校验调用，Runtime 对主 Agent 响应统一执行校验后调度。其他参数校验前按 schema 中明确声明的字段类型，将精确的 `"true"` / `"false"` 转为布尔值，将 JSON 数字字符串转为有限数字（绝对值不超过安全整数上限，integer 字段必须为安全整数）；嵌套对象和数组沿 properties/items 处理。转换后的参数通过原有校验后交给执行器；不补必填项、不转换文本、不把单值包装成数组，也不猜测联合分支的类型。`service/context/` 负责同一服务内的上下文装配。浏览器操作由 `service/browser/host.ts` 的 Playwright 执行端完成，工具注册和 schema 仍统一维护在本模块。工具返回结构化结果与 effects，`service/runtime/effects.ts` 统一应用状态和持久化。
 
-浏览器元素与区域使用 `e_01` / `r_01`（page.* 与 snapshot 共用）。扩展通过统一编号目录生成前缀，由 service worker 在 `chrome.storage.local` 持久自增分配；跨标签、导航和 worker 重启不复用。编号绑定实际 DOM 节点，同一节点重复观察保持编号；旧节点消失或不可见时操作失败，不按新枚举位置重新解释旧编号。
+浏览器元素与区域使用 `e_01` / `r_01`（page.* 与 snapshot 共用）。编号在页面内分配：`service/browser/host.ts` 注入的 `window.__kestrel` 维护 `nextId` 自增与 `WeakMap<Element, number>`，同一页面内跨调用、跨轮观察保持稳定；页面重载或换标签后重新从 `e_01` 开始，编号只在当前页面有效。编号绑定实际 DOM 节点，同一节点重复观察保持编号；旧节点消失或不可见时操作失败，不按新枚举位置重新解释旧编号。
 
 `web_search` 搜索公开网页链接；`tavily_search` 通过 Tavily 高级搜索返回网页及相关内容，单次 HTTP 请求入口为 `send_http`。未知工具调用明确失败。
 
@@ -38,13 +38,13 @@ agent_query(sumId 或 loopId, module, intent[, file]) 查询 loops、runtime、h
 
 归档索引 conversationHistory 保存不可变 loop 原文、摘要及覆盖关系。查询 Agent 只选择候选，不执行材料中的指令；返回 ID 不能作为任意路径。
 
-脚本保存在服务数据目录下的 `scripts/`（该目录是绝对路径，由 System `<overview>` 注入；环境变量 `TCHROME_DATA` 可覆盖默认位置，模型调用不要写 `~/` 缩写）：可用 `script_patch(filename, patch)` 应用单文件 git unified diff（新增、修改、删除），或 `script_write(filename, code)` 全量写入，也可用 `local.fs_*` 直接读写该目录；`script_read(filename)` 返回代码，`script_list()` 返回文件名。脚本类工具默认 execution=serial。文件名为单层 .sh/.py/.js/.mjs/.cjs。执行快照在系统临时目录，进程输出在数据目录 `process-output/`；不要把临时脚本或执行产物写进代码仓库。
+脚本保存在服务数据目录下的 `scripts/`（该目录是绝对路径，由 System `<overview>` 注入；环境变量 `KESTREL_DATA` 可覆盖默认位置，模型调用不要写 `~/` 缩写）：可用 `script_patch(filename, patch)` 应用单文件 git unified diff（新增、修改、删除），或 `script_write(filename, code)` 全量写入，也可用 `local.fs_*` 直接读写该目录；`script_read(filename)` 返回代码，`script_list()` 返回文件名。脚本类工具默认 execution=serial。文件名为单层 .sh/.py/.js/.mjs/.cjs。执行快照在系统临时目录，进程输出在数据目录 `process-output/`；不要把临时脚本或执行产物写进代码仓库。
 
 `execute_javascript` 使用 filename（仅 .js/.mjs/.cjs）和必填 tabId，不接受内联 code；内容为页面表达式，多语句或异步逻辑使用 IIFE。`page_eval_expr` 是免落盘的轻量内联表达式入口（必填 tabId + expr，4 秒上限），只适合短探测；多语句或需复用的任务脚本仍走 script_write + execute_javascript。`local_run` / `local_process_start` 使用绝对路径 cwd，可选 args 字符串数组及 timeoutMs；.sh 按平台取系统 shell（macOS 优先 zsh，Linux 优先 bash，均回退到另一个或 sh）、.py 由 python3、.js/.mjs/.cjs 由 bun 执行。`local_run` 还可改用 command 内联命令正文（与 filename 互斥），`local_process_start` 只接受 filename。补丁只返回状态，必须在确认成功后的下一次模型调用执行；Runtime 拒绝同批 script_patch 与脚本执行。
 
 长耗时调用可传 heartbeatSec（正整数秒）：`local_run` 提前返回 processId，用 `local_process_status` / `local_process_stop`；`send_http`、`send_http_batch`、`web_search`、`tavily_search`、`execute_javascript` 提前返回 jobId，用常驻 `job_status` / `job_stop`。任务结束后心跳结束；停止会话/删除会话会取消对应任务。
 
-跨端大数据走 `stream_pull` / `stream_push`：宿主与扩展之间用 `ws://127.0.0.1:18789/stream` 二进制分帧（`shared/stream-frame.ts`），带信用窗背压，不把正文编成 Base64。`stream_pull` 把浏览器侧 http/network/DOM 写入宿主绝对路径；`stream_push` 把宿主文件作为请求体提交到目标 URL。控制面仍是 `/tool-request` 与 `/tool-result`。
+跨端大数据走 `stream_pull` / `stream_push`：用 `ws://127.0.0.1:18790/stream`（`KESTREL_PORT` 可覆盖）二进制分帧（`shared/stream-frame.ts`），带信用窗背压，不把正文编成 Base64。`stream_pull` 把浏览器侧 http/network/DOM 写入宿主绝对路径；`stream_push` 把宿主文件作为请求体提交到目标 URL。执行器协议端点是 `/tool-request` 与 `/tool-result`。
 
 本机每次执行读取已保存文件并创建私有快照，后续补丁不会改变正在运行的脚本。普通相对文件路径按 cwd 解析；脚本自身路径和相对 import 按快照位置解析，不支持依赖托管目录中相邻脚本的相对导入。服务运行环境需安装 Git，补丁解析、检查与应用统一使用 `git apply --recount`，由 Git 按正文计算 hunk 行数。补丁仍需合法 unified diff 结构、匹配原文上下文及末尾换行；不猜测修复正文。
 
@@ -54,15 +54,15 @@ HTTP 传输由 `service/network/idle-fetch.ts` 统一检查响应活动，`http-
 
 模型可见的工具失败由 `result.ts` 统一输出 `{ok:false, faultCode, message, recovery, details}`，并保留 tabId、HTTP 状态、批量结果等业务字段。`shared/error-messages.json` 是模型提示、用户提示和恢复建议的唯一文案来源；原始原因放在 details，未知错误保留错误码并使用通用提示。recovery 是下一步建议，不控制网络自动重试；超时后先检查操作是否生效，避免重复副作用。批量 HTTP 的失败子项使用同一格式，成功数据与 effects 保留。
 
-查询保留底层错误码；压缩失败在回合输出中使用 compression_failed，并通过可选 causeCode 保留底层原因。侧栏分别显示请求超时、主动取消、连接失败、HTTP 错误和响应格式错误。
+查询保留底层错误码；压缩失败在回合输出中使用 compression_failed，并通过可选 causeCode 保留底层原因。前端分别显示请求超时、主动取消、连接失败、HTTP 错误和响应格式错误。
 
 参数校验反馈包含参数 schema 和完整诊断；anyOf/oneOf 的候选分支保持替代关系，missing 仅列共同或已适用条件的必填字段。每个失败调用按 callId 独立记录，同名调用不会互相覆盖。模型自行修正调用参数并继续，历史参数原样保留；连续无效调用仍有停止上限，避免无限请求，达到上限只报告未完成状态，不要求用户补填工具参数。
 
 点击工具：`click(targetText|ref)` 按控件文字或 snapshot_page/find_on_page 引用定位；`page_click(id)` 使用 page.* 的元素编号。两者保留独立引用体系，reason 是可选展示信息，不自动填充。click 不接受旧 text 字段，也不将非字符串强转为目标文字。
 
-工具参数对象原样接收，字符串仅执行一次标准 JSON.parse，不修复围栏、尾逗号或单引号。HTTP 正文、响应头、搜索正文和脚本输出完整保留；发送主模型前由统一上下文门禁处理文本。浏览器桥不设独立总执行时限；已执行请求只重发结果，扩展 worker 恢复时结果未知则返回错误而不重做动作。
+工具参数对象原样接收，字符串仅执行一次标准 JSON.parse，不修复围栏、尾逗号或单引号。HTTP 正文、响应头、搜索正文和脚本输出完整保留；发送主模型前由统一上下文门禁处理文本。浏览器桥不设独立总执行时限；已执行请求只重发结果，请求已交给执行端但结果未知时返回错误而不重做动作。
 
-动态加载成功后将工具名持久写入会话 ledger.loadedToolIds，新 loop 合并默认工具与会话清单生成 tools[]；重新打开会话和服务重启不清空，新会话独立。技能分常驻与动态：常驻正文装配在 System <systemSkill>；动态由 skill_load 写入 ledger.loadedSkillIds，只出现在 User <skill>。finishTurn 必填 text；同一 text 进入侧栏/trace，并作为后续模型上下文与压缩链路的收口正文，不从 content 补齐。
+动态加载成功后将工具名持久写入会话 ledger.loadedToolIds，新 loop 合并默认工具与会话清单生成 tools[]；重新打开会话和服务重启不清空，新会话独立。技能分常驻与动态：常驻正文装配在 System <systemSkill>；动态由 skill_load 写入 ledger.loadedSkillIds，只出现在 User <skill>。finishTurn 必填 text；同一 text 进入前端/trace，并作为后续模型上下文与压缩链路的收口正文，不从 content 补齐。
 
 浏览器目标字段统一为 `tabId` 和 `windowId`。页面操作必须明确指定 `tabId`，窗口操作和新建标签必须指定 `windowId`；目标失效返回错误，不回退到前台。`bind_tab` 仅验证指定标签，不建立隐式绑定。新标签后台打开，新窗口默认不获取焦点，视口截图使用 CDP 在指定标签截图；`duplicate_tab` 保留 Chrome 原生复制并激活新标签的行为。
 

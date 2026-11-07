@@ -132,8 +132,8 @@ export function createServer(options: ServeOptions = {}) {
     fetch: async (request: Request) => {
       const url = new URL(request.url);
       const origin = request.headers.get("origin");
-      // Widget pages are public on localhost so extension iframes can load them
-      // as normal web documents (own JS context, not extension CSP).
+      // Widget pages are public on localhost so the frontend can load them in
+      // iframes as normal web documents with their own JS context.
       if (request.method === "GET" && url.pathname.startsWith("/widget/")) {
         const id = url.pathname.slice("/widget/".length);
         const page = readWidgetPage(dataDir, id);
@@ -141,7 +141,7 @@ export function createServer(options: ServeOptions = {}) {
         return new Response(page, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
       }
       // 前端页面本身是可公开浏览的静态入口（不含数据），任何来源打开都应返回；
-      // 数据接口仍然走下面的同源/扩展来源校验。
+      // 数据接口仍然走下面的同源/受信任来源校验。
       const isPageRequest = request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html");
       // Check before routing: omitting CORS headers alone cannot prevent writes.
       if (!isPageRequest && (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
@@ -200,8 +200,8 @@ export function createServer(options: ServeOptions = {}) {
         if (!bridge.resolve(body.id, body.result)) return respond({ ok: false, error: "没有这个工具请求" }, 404);
         return respond({ ok: true });
       }
-      // Batch entry for external scripts: enqueue browser tool calls on the same
-      // in-memory bridge the extension already polls, so they run on real tabs.
+      // Batch entry for external scripts: run browser tool calls on the host
+      // directly, so they act on real tabs.
       if (request.method === "POST" && url.pathname === "/browser-batch") {
         let body: { tasks?: unknown } | null = null;
         try { body = await request.json() as { tasks?: unknown }; } catch { body = null; }
@@ -444,7 +444,7 @@ export function createServer(options: ServeOptions = {}) {
         if (conversationId && !listConversationIds(dataDir).includes(conversationId)) {
           return respond({ error: "没有这个会话" }, 404);
         }
-        // 谁发起的停止：脚本安排的优雅重启传 service，其余（侧栏停止按钮）仍是 user。
+        // 谁发起的停止：脚本安排的优雅重启传 service，其余（前端停止按钮）仍是 user。
         const stopped = stopTurn(dataDir, conversationId, body?.initiatedBy === "service" ? "service" : "user");
         if (conversationId) host.abort?.(conversationId);
         return respond(stopped);
@@ -457,7 +457,7 @@ export function createServer(options: ServeOptions = {}) {
 const isMain = import.meta.main;
 if (isMain) {
   const hostname = "127.0.0.1";
-  // tChrome 默认占用 18789，Kestrel 换一个端口避免与本机原服务冲突。
+  // 默认 18790；可用 KESTREL_PORT 覆盖，避免与本机其他服务撞端口。
   const port = Number(Bun.env.KESTREL_PORT ?? 18790);
   const server = createServer();
   // 启动即复位上一次被硬杀留下的 running 会话，否则那些会话会永远卡在 busy。
