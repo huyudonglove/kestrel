@@ -1,0 +1,36 @@
+{
+  "type": "function",
+  "function": {
+    "name": "save_pdf",
+    "description": "将指定页按打印样式保存为 PDF（含背景，优先采用页面 CSS 纸张尺寸），通过 Chrome 下载到本机。需要浏览器支持 Page.printToPDF；不支持时明确失败。必填 tabId、filename（下载目录内相对 .pdf 文件名，默认自动命名，重名自动改名）、timeoutMs（等待下载完成 1～5000ms，默认 5000）。成功返回 downloadId、path（本机最终绝对路径）及下载状态，不返回 PDF/base64；超时返回 ok=false、status=pending 和 downloadId，可调用 wait_download 继续等待，不要重复保存。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string",
+          "maxLength": 240,
+          "description": "下载目录内的相对文件名（.pdf），省略时自动命名，重名自动改名。"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000,
+          "description": "等待超时毫秒，省略则用该工具默认值"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "execution": "serial"
+}

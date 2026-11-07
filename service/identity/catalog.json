@@ -1,0 +1,219 @@
+{
+  "conversation": {
+    "field": "conversationId",
+    "prefix": "cv",
+    "scope": "service",
+    "allocation": "existing",
+    "description": "会话"
+  },
+  "turn": {
+    "field": "turnId",
+    "prefix": "tn",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "用户输入开启的轮次"
+  },
+  "input": {
+    "field": "id",
+    "prefix": "input",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "用户输入记录"
+  },
+  "taskHistory": {
+    "field": "id",
+    "prefix": "th",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "任务事件历史"
+  },
+  "page": {
+    "field": "id",
+    "prefix": "page",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "观察记录"
+  },
+  "call": {
+    "field": "callId",
+    "prefix": "call",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "工具调用；sourceCallId 引用此 ID"
+  },
+  "batch": {
+    "field": "batchId",
+    "prefix": "batch",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "一次模型返回的调用批次"
+  },
+  "conversationMemory": {
+    "field": "memoryId",
+    "prefix": "mm",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "会话记忆"
+  },
+  "projectMemory": {
+    "field": "memoryId",
+    "prefix": "lm",
+    "scope": "service",
+    "allocation": "counter",
+    "description": "共享长期记忆"
+  },
+  "sum": {
+    "field": "sumId",
+    "prefix": "sum",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "压缩摘要"
+  },
+  "query": {
+    "field": "queryId",
+    "prefix": "query",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "查询记录"
+  },
+  "library": {
+    "field": "id",
+    "prefix": "lib",
+    "scope": "service",
+    "allocation": "existing",
+    "description": "跨会话资料库条目"
+  },
+  "image": {
+    "field": "id",
+    "prefix": "img",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "图片附件"
+  },
+  "asset": {
+    "field": "assetId",
+    "prefix": "ast",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "归档资产 L1 目录项"
+  },
+  "process": {
+    "field": "processId",
+    "prefix": "proc",
+    "scope": "service",
+    "allocation": "counter",
+    "description": "本地进程"
+  },
+  "job": {
+    "field": "jobId",
+    "prefix": "job",
+    "scope": "service",
+    "allocation": "counter",
+    "description": "心跳提前返回的后台任务"
+  },
+  "reflect": {
+    "field": "id",
+    "prefix": "rf",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "本轮反思记录"
+  },
+  "note": {
+    "field": "id",
+    "prefix": "nt",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "工作草稿条目"
+  },
+  "action": {
+    "field": "id",
+    "prefix": "act",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "轮内工具调用动作流水"
+  },
+  "account": {
+    "field": "id",
+    "prefix": "account",
+    "scope": "service",
+    "allocation": "counter",
+    "description": "账号记录"
+  },
+  "bridge": {
+    "field": "id",
+    "prefix": "br",
+    "scope": "service",
+    "allocation": "counter",
+    "description": "浏览器桥请求"
+  },
+  "source": {
+    "field": "id",
+    "prefix": "src",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "归档来源"
+  },
+  "pageElement": {
+    "field": "id",
+    "prefix": "e",
+    "scope": "browser",
+    "allocation": "browser-counter",
+    "description": "页面元素"
+  },
+  "pageRegion": {
+    "field": "id",
+    "prefix": "r",
+    "scope": "browser",
+    "allocation": "browser-counter",
+    "description": "页面区域"
+  },
+  "task": {
+    "field": "id",
+    "prefix": "task",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "执行任务"
+  },
+  "taskItem": {
+    "field": "id",
+    "prefix": "item",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "任务步骤"
+  },
+  "providerRequest": {
+    "field": "requestId",
+    "prefix": "req",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "模型请求诊断"
+  },
+  "outboundRequest": {
+    "field": "outboundId",
+    "prefix": "out",
+    "scope": "service",
+    "allocation": "counter",
+    "description": "模型出网请求快照"
+  },
+  "loop": {
+    "field": "id",
+    "prefix": "loop",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "主模型交互"
+  },
+  "runtime": {
+    "field": "id",
+    "prefix": "rt",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "运行时输入"
+  },
+  "helm": {
+    "field": "id",
+    "prefix": "helm",
+    "scope": "conversation",
+    "allocation": "counter",
+    "description": "模型响应"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "type": "function",
+  "function": {
+    "name": "har",
+    "description": "录制页面网络请求并导出 HAR（HTTP Archive）结构。\n参数：action=start|stop|read；必填 tabId。start 开始 CDP 网络监听；stop 返回 har.log.entries（大结果走统一 {{inlineChars}} 门禁，可用 evidence_search）；read 查看是否在录。\n返回：ok、entryCount、har。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "start",
+            "stop",
+            "read"
+          ],
+          "description": "操作类型：start 开始录制、stop 停止并返回 HAR、read 查看是否在录。"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId",
+        "action"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

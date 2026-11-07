@@ -1,0 +1,59 @@
+{
+  "type": "function",
+  "function": {
+    "name": "set_cookie",
+    "description": "设置 Cookie。\n参数：必填 name、value；可选 url、domain、path、secure、sameSite、expires（秒，相对当前）。\n返回：ok、name、value。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "Cookie 名称"
+        },
+        "value": {
+          "type": "string",
+          "description": "要设置的 cookie 值"
+        },
+        "url": {
+          "type": "string",
+          "description": "完整网址；可省略并改用 domain/path"
+        },
+        "domain": {
+          "type": "string",
+          "description": "Cookie 的 domain 属性；省略 url 时用它定位站点。"
+        },
+        "path": {
+          "type": "string",
+          "description": "Cookie 的 path 属性，省略表示默认路径"
+        },
+        "secure": {
+          "type": "boolean",
+          "description": "是否仅通过 HTTPS 发送。"
+        },
+        "sameSite": {
+          "type": "string",
+          "enum": [
+            "lax",
+            "strict",
+            "none"
+          ],
+          "description": "SameSite 策略：lax、strict 或 none。"
+        },
+        "expires": {
+          "type": "number",
+          "description": "过期时间，相对当前的秒数"
+        }
+      },
+      "required": [
+        "reason",
+        "name",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

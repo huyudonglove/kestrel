@@ -1,0 +1,25 @@
+{
+  "type": "function",
+  "function": {
+    "name": "switch_tab",
+    "description": "明确切换到指定标签并读取页面。\n参数：必填 tabId。此操作用于用户要求展示或切换页面。\n返回：ok、tabId、title、url、text。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

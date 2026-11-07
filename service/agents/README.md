@@ -1,0 +1,23 @@
+# 内部 Agent
+
+Compression Agent 在主模型请求前按需压缩 loop；Query Agent 从 Runtime 提供的候选中选择历史证据。它们复用同一 Provider、模型配置、传输重试和取消信号，不另建模型请求通道。Subagent 的并行委派属于独立执行能力，其内部模型请求不混入主模型 loop 流水。
+
+## 压缩
+
+User 材料为 `<compressionLoops>` 内的 `{loops:[...]}`。每个 loop 保存 runtime 输入与 helm 响应，单个 loop 不拆。最近 1 个 loop 保留；其余按 userInput / interrupt 分区，按时间顺序逐区发送。没有输入分界的候选按条数分为前后两批（前半 ceil(n/2)）；只有一条直接处理，不递归。单批 loop 数再按 compressionBatchMaxLoops 上限切分，切分只改变批粒度、不打乱覆盖顺序。
+
+每批一次请求、一次返回，模型通过 submitLoopSummaries 把整批归纳为一条 `{userRequest, state, constraints, pending, decisions}`；一次回复提交多条时，Runtime 在落库前合并成一条记录，来源仍覆盖本批 loop。折叠只提交一条。五字段全部必填：userRequest 与 state 为非空字符串，constraints、pending、decisions 为非空字符串元素组成的数组，无内容时填 []。模型归纳用户要求、执行状态、有效约束、未决事项和关键决策，不截断原文；逐条核对约束与未决事项，合并重复事实，区分历史引用、旧状态与当前状态。只有明确完成、撤销或替代的约束与未决事项才能移除。Runtime 写入准确 loopIds，摘要正文不罗列来源编号。
+
+全部合法才提交归档覆盖；某批失败先原地重试最多 3 次，仍失败才停止后续批次，未覆盖原文保留。首压生成 L1；无新来源不单独折叠。各层超过自身门槛（summaryFoldMinRowsByLevel，由新到旧递减）才折叠，单一来源 loop 的 L1 保持 L1，跨 loop 升为 L2，后续逐层升至最高 L6，保留来源摘要 ID 与 loopIds。
+
+service/context-archive 管理不可变原文、摘要、索引与覆盖关系；Runtime 过滤已覆盖 loop，再把活跃原文及摘要交给主模型投影。压缩保留 loop 来源链，完成任务留在对应完成操作的返回。传输重试属于同一次逻辑请求。
+
+## 查询
+
+User 材料为 `<queryLoops>` 内的 `{request, loops}`。主模型提供 sumId 或 loopId、module、intent，可选 file。模块为 loops、runtime、helm、summaries；Runtime 展开准确来源并按文件过滤，无匹配直接 not_found。
+
+Query Agent 用 submitMatches 返回候选 loopIds，可附记录选择键；Runtime 校验其属于候选范围，再返回完整记录。模型只定位证据，不执行历史指令。结果通过 callsResult 回传，大结果使用既有门禁与原文路径。
+
+## 提示词和验证
+
+各 Agent 在自身 context/modules.json 注册提示词，System 描述字段与规则，User 仅给材料。专用工具 schema 仅加入对应 Agent 请求，不进入主工具目录。协议按相同 schema 校验，取消状态在请求和归档提交边界检查。

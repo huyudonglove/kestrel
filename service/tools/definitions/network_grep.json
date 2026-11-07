@@ -1,0 +1,50 @@
+{
+  "type": "function",
+  "function": {
+    "name": "network_grep",
+    "description": "等待匹配网络响应，并在响应体中检索关键字（返回关键字附近上下文）。\n参数：必填 urlContains、keyword、tabId；可选 status、contextChars（默认 400）、timeoutMs。\n返回：ok、requestId、url、status、matches[{offset,before,hit,after}]、totalChars。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "urlContains": {
+          "type": "string",
+          "description": "响应 URL 需包含的子串"
+        },
+        "keyword": {
+          "type": "string",
+          "description": "要在响应体中检索的关键字。"
+        },
+        "status": {
+          "type": "integer",
+          "description": "可选 HTTP 状态码。"
+        },
+        "contextChars": {
+          "type": "integer",
+          "description": "命中片段前后保留的字符数，默认 400。"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "description": "等待响应的超时毫秒；转发给 wait_response，默认 8000，钳制在 500~12000。",
+          "default": 8000,
+          "minimum": 500,
+          "maximum": 12000
+        }
+      },
+      "required": [
+        "reason",
+        "tabId",
+        "urlContains",
+        "keyword"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

@@ -1,0 +1,58 @@
+{
+  "type": "function",
+  "function": {
+    "name": "account_vault",
+    "description": "管理本地账号库。\n参数：action=list 列站点账号；action=get 按 id 或 site+username 取完整凭据，指定 id 时只匹配该账号；action=save 必须提供 site（站点）、username（账号）、password（密码），可选 label（标签）、note（备注）。指定 id 时更新该账号的全部必填字段，id 不存在或站点+用户名与其他账号冲突时失败；不指定 id 时按 site+username 保存或更新。更新时省略 label/note 保留旧值，传空字符串可清空；action=delete 按 id 删除。\n返回：ok、account 或 items（结果列表）。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "list",
+            "get",
+            "save",
+            "delete"
+          ],
+          "description": "操作类型：list 列站点账号、get 取完整凭据、save 保存或更新、delete 按 id 删除。"
+        },
+        "id": {
+          "type": "string",
+          "description": "账号库中的账号 id（action=list 结果里的 id），用于按 id 取或更新账号。"
+        },
+        "site": {
+          "type": "string",
+          "description": "站点域名或网址"
+        },
+        "username": {
+          "type": "string",
+          "description": "邮箱、用户名或手机号"
+        },
+        "password": {
+          "type": "string",
+          "description": "账号密码；action=save 时必填。"
+        },
+        "label": {
+          "type": "string",
+          "description": "账号标签（可选）。"
+        },
+        "note": {
+          "type": "string",
+          "description": "账号备注（可选）。"
+        },
+        "reveal": {
+          "type": "boolean",
+          "description": "true 时在结果中返回明文密码，默认打码。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

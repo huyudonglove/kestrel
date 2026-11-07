@@ -1,0 +1,34 @@
+{
+  "type": "function",
+  "function": {
+    "name": "page_get_element_state",
+    "description": "看元素焦点、禁用、勾选、当前值。\n参数：id（页面工具返回的目标标识），必填 tabId（目标标签编号）。\n返回：ok、focused、disabled、value（当前值）、inView。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "frameId": {
+          "type": "integer",
+          "description": "内嵌文档编号，从 frame_list 取得；不传则作用于主文档。"
+        },
+        "id": {
+          "type": "string",
+          "description": "page.* 返回的 e_01 格式元素编号，原样传入。"
+        }
+      },
+      "required": [
+        "reason",
+        "id",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

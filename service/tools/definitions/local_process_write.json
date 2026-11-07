@@ -1,0 +1,35 @@
+{
+  "type": "function",
+  "function": {
+    "name": "local_process_write",
+    "description": "向本会话运行中进程的标准输入写入 text；end=true 表示写入后关闭标准输入。返回当前进程快照：ok、processId、status、exitCode、signal、stdout/stderr 及其持久化路径 stdoutPath/stderrPath；进程已结束或 stdin 已关闭时返回 ok=false、faultCode 与 error。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "processId": {
+          "type": "string",
+          "description": "目标本地进程编号，来自 local_run 或 local_process_start 的返回"
+        },
+        "text": {
+          "type": "string",
+          "description": "要写入进程 stdin 的文本"
+        },
+        "end": {
+          "type": "boolean",
+          "description": "true 表示写入后关闭进程的标准输入（EOF）。"
+        },
+        "reason": {
+          "type": "string",
+          "description": "本次操作的目的"
+        }
+      },
+      "required": [
+        "processId",
+        "text",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

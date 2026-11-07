@@ -1,0 +1,29 @@
+{
+  "type": "function",
+  "function": {
+    "name": "cookies",
+    "description": "读取 Cookie。\n参数：可选 url（默认当前标签页地址）；必填 tabId。\n返回：ok、cookies[{name,value,domain}]。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（从 tabs_current 等返回取得）。"
+        },
+        "url": {
+          "type": "string",
+          "description": "要列出 cookie 的站点 URL"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

@@ -1,0 +1,47 @@
+{
+  "type": "function",
+  "function": {
+    "name": "cache_storage",
+    "description": "读写页内 Cache Storage。\n参数：action=read|write|delete|list；list 可省略 cache；其余操作建议提供 cache；读写删除需 key；write 需 value。必填 tabId。\n返回：ok、value/keys/caches。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（从 tabs_current 等返回取得）。"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "delete",
+            "list"
+          ],
+          "description": "操作类型：read 读取、write 写入、delete 删除、list 列出缓存名。"
+        },
+        "cache": {
+          "type": "string",
+          "description": "缓存名"
+        },
+        "key": {
+          "type": "string",
+          "description": "键名"
+        },
+        "value": {
+          "type": "string",
+          "description": "要写入的值"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

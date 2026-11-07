@@ -1,0 +1,357 @@
+{
+  "tool_execution_failed": {
+    "model": "工具执行失败。先检查详细错误和当前状态，确认操作是否已生效，再决定下一步。",
+    "user": "本轮执行遇到错误，未能完成。详细错误已保留在服务日志中。",
+    "recovery": "inspect_state"
+  },
+  "subagent_failed": {
+    "model": "委派的 Subagent 全部失败，没有任何 packet 成功。逐项查看返回体的 results 与 errors，再决定重试、缩小任务或改派。",
+    "user": "委派的任务全部失败，逐项原因已保留在返回结果中。",
+    "recovery": "inspect_state"
+  },
+  "subagent_partial_failure": {
+    "model": "部分委派任务未成功（total/success/failed/blocked 见返回体）。成功项可复用，失败与阻断项逐项看 results 后决定重试或调整。",
+    "user": "部分委派任务未完成，逐项原因已保留在返回结果中。",
+    "recovery": "inspect_state"
+  },
+  "stopped": {
+    "model": "本回合已取消，停止后续操作。",
+    "user": "已停止",
+    "recovery": "none"
+  },
+  "max_outbounds": {
+    "model": "已达到本轮执行次数上限，报告当前进展和剩余工作。",
+    "user": "本轮已达到执行次数上限，任务还没有完成。",
+    "recovery": "user_action"
+  },
+  "compression_failed": {
+    "model": "上下文压缩失败，原始记录已保留。检查详细错误后再决定下一步。",
+    "user": "上下文压缩未完成，原始记录已保留。",
+    "recovery": "inspect_state"
+  },
+  "query_failed": {
+    "model": "历史查询失败。检查详细错误和查询条件后再决定下一步。",
+    "user": "历史查询未完成，具体原因已保留在错误详情中。",
+    "recovery": "inspect_state"
+  },
+  "context_limit": {
+    "model": "压缩和文件外置后上下文仍超限，请检查上下文配置。",
+    "user": "压缩与文件外置后，保留的上下文仍超过容量上限，本次模型请求未发送。请检查上下文配置。",
+    "recovery": "user_action"
+  },
+  "provider_error": {
+    "model": "模型服务请求失败。检查错误详情，确认原因后再决定是否重试。",
+    "user": "模型请求失败，本轮未完成。",
+    "recovery": "inspect_state"
+  },
+  "provider_output_limit": {
+    "model": "模型输出达到长度上限，部分工具调用未执行。缩小单次输出。",
+    "user": "模型输出达到长度上限，本轮未完成，未执行其中的部分工具调用。",
+    "recovery": "correct_arguments"
+  },
+  "provider_refused": {
+    "model": "模型服务拒绝本次请求，返回的工具调用未执行。",
+    "user": "模型服务拒绝了本次请求，本轮未执行返回中的工具调用。",
+    "recovery": "user_action"
+  },
+  "provider_incomplete": {
+    "model": "模型响应未完整结束，返回的工具调用未执行。检查原因后再决定下一步。",
+    "user": "模型响应尚未完整结束，本轮未执行其中的工具调用。",
+    "recovery": "inspect_state"
+  },
+  "provider_invalid_response": {
+    "model": "模型响应格式无效，返回的工具调用未执行。检查服务响应。",
+    "user": "模型服务返回的响应格式无效，本轮未执行其中的工具调用。",
+    "recovery": "inspect_state"
+  },
+  "provider_key_missing": {
+    "model": "尚未配置模型服务密钥，请完成服务配置。",
+    "user": "尚未配置模型服务密钥，请先在本机服务中完成配置。",
+    "recovery": "user_action"
+  },
+  "provider_key_invalid": {
+    "model": "模型服务密钥无效或权限不足，请检查配置。",
+    "user": "模型服务密钥无效或权限不足，请检查配置。",
+    "recovery": "user_action"
+  },
+  "invalid_arguments": {
+    "model": "工具参数无效。根据参数定义和详细错误修正后重新调用。",
+    "user": "工具参数无效。",
+    "recovery": "correct_arguments"
+  },
+  "missing_required": {
+    "model": "缺少必填参数。按工具定义与详细错误补齐共同必填字段，并满足适用的参数分支；互为替代的分支满足其一即可。",
+    "user": "工具调用缺少必填参数。",
+    "recovery": "correct_arguments"
+  },
+  "wrong_type": {
+    "model": "参数类型错误。按工具定义修正参数类型。",
+    "user": "工具调用参数类型错误。",
+    "recovery": "correct_arguments"
+  },
+  "conflicting_params": {
+    "model": "互斥参数同时出现。按详细错误中列出的字段只保留其中一个。",
+    "user": "工具调用同时传了互斥参数。",
+    "recovery": "correct_arguments"
+  },
+  "unknown_tool": {
+    "model": "工具不存在或尚未加载。先查看工具目录并加载所需工具。",
+    "user": "请求的工具不存在或尚未加载。",
+    "recovery": "correct_arguments"
+  },
+  "unknown_group": {
+    "model": "功能类 id 不存在。先用 list_browser_tools 或 <tools> 未加载能力索引确认类 id。",
+    "user": "请求的功能类不存在。",
+    "recovery": "correct_arguments"
+  },
+  "script_steps_separate": {
+    "model": "脚本修改与执行必须分批调用。先检查写入状态，再决定是否执行。",
+    "user": "脚本修改和执行需要分步进行。",
+    "recovery": "correct_arguments"
+  },
+  "exclusive_resident": {
+    "model": "该工具需要单独调用。请拆分本批工具调用。",
+    "user": "该工具需要单独调用。",
+    "recovery": "correct_arguments"
+  },
+  "arguments_not_json": {
+    "model": "工具参数不是有效 JSON。请使用符合工具定义的 JSON 对象。",
+    "user": "工具调用参数不是有效 JSON。",
+    "recovery": "correct_arguments"
+  },
+  "invalid_path": {
+    "model": "路径无效。请检查路径格式、父目录和允许访问的范围。",
+    "user": "文件路径无效。",
+    "recovery": "correct_arguments"
+  },
+  "file_not_found": {
+    "model": "文件不存在。先检查路径或列出目录，确认文件名后再操作。",
+    "user": "未找到指定文件。",
+    "recovery": "inspect_state"
+  },
+  "file_exists": {
+    "model": "目标文件已经存在。先读取并确认其内容，再决定修改位置或文件名。",
+    "user": "目标文件已经存在。",
+    "recovery": "inspect_state"
+  },
+  "tool_timeout": {
+    "model": "工具等待超时，操作可能仍在执行或已经生效。先检查当前状态，再决定是否重试。",
+    "user": "工具等待超时，操作可能仍在执行或已经生效。",
+    "recovery": "inspect_state"
+  },
+  "dialog_open": {
+    "model": "浏览器对话框正在阻止操作。先检查并处理对话框，再继续页面操作。",
+    "user": "浏览器有待处理的对话框。",
+    "recovery": "inspect_state"
+  },
+  "http_idle_timeout": {
+    "model": "HTTP 请求连续无数据，已达到空闲超时。操作可能已经生效，先检查当前状态再决定是否重试。",
+    "user": "网络请求长时间未收到数据，操作可能已经生效。",
+    "recovery": "inspect_state"
+  },
+  "http_error": {
+    "model": "HTTP 请求失败。检查状态码和详细错误，确认操作是否生效后再决定下一步。",
+    "user": "网络请求失败，具体原因已保留在错误详情中。",
+    "recovery": "inspect_state"
+  },
+  "no_dialog": {
+    "model": "当前没有可处理的浏览器对话框。先检查页面状态。",
+    "user": "当前没有待处理的浏览器对话框。",
+    "recovery": "inspect_state"
+  },
+  "stale_ref": {
+    "model": "页面元素引用已过期，请重新读取页面后再操作。",
+    "user": "页面内容已变化，需要重新读取。",
+    "recovery": "inspect_state"
+  },
+  "busy": {
+    "model": "已有任务正在执行，请检查当前回合状态。",
+    "user": "当前任务仍在执行。",
+    "recovery": "inspect_state"
+  },
+  "conversation_changed": {
+    "model": "会话已经切换，请使用当前会话状态。",
+    "user": "会话已经切换，本次操作未继续。",
+    "recovery": "inspect_state"
+  },
+  "permission_denied": {
+    "model": "没有访问权限。请检查文件或目录权限。",
+    "user": "没有访问该文件或目录的权限。",
+    "recovery": "user_action"
+  },
+  "browser_unavailable": {
+    "model": "浏览器连接不可用。请检查扩展和浏览器连接状态。",
+    "user": "浏览器未连接，请检查扩展是否正常运行。",
+    "recovery": "user_action"
+  },
+  "service_unreachable": {
+    "model": "无法连接本机服务，请检查服务运行状态。",
+    "user": "无法连接本机服务，请确认服务已启动。",
+    "recovery": "user_action"
+  },
+  "service_timeout": {
+    "model": "等待本机服务响应超时，请先检查任务状态。",
+    "user": "等待本机服务响应超时，任务可能仍在执行。",
+    "recovery": "inspect_state"
+  },
+  "service_cancelled": {
+    "model": "本机服务请求已取消。",
+    "user": "请求已取消。",
+    "recovery": "none"
+  },
+  "service_invalid_response": {
+    "model": "本机服务返回无效响应，请检查服务日志。",
+    "user": "本机服务返回的响应格式无效，具体原因已保留在服务日志中。",
+    "recovery": "inspect_state"
+  },
+  "service_http_error": {
+    "model": "本机服务请求失败，请检查状态码和详细错误。",
+    "user": "本机服务请求失败，具体原因已保留在错误详情中。",
+    "recovery": "inspect_state"
+  },
+  "empty_finish_turn": {
+    "model": "finishTurn 的回复为空。请将对用户说的话写入非空 text，再调用 finishTurn。",
+    "user": "模型连续返回了空回复，本轮已停止。",
+    "recovery": "correct_arguments"
+  },
+  "empty_ask_user": {
+    "model": "askUser 的问题为空。请将具体问题写入非空 question 参数，再调用 askUser。",
+    "user": "模型没有生成有效的问题，本轮未完成。",
+    "recovery": "correct_arguments"
+  },
+  "need_finish_turn": {
+    "model": "没有 tool_calls。请将最终回复写入非空 text 并调用 finishTurn；需要用户补充信息时用 question 参数调用 askUser。",
+    "user": "模型没有生成有效的最终回复，本轮未完成。",
+    "recovery": "correct_arguments"
+  },
+  "result_externalized": {
+    "model": "单次结果超过内联门禁，全文已缓存本地。用 evidence_search 按 callId 或 pageId 与 keyword 取关键字附近上下文；窗口内只有摘要与 path。",
+    "user": "工具结果过大，已保存在本地，模型将改为检索关键片段。",
+    "recovery": "correct_arguments"
+  },
+  "tavily_key_missing": {
+    "model": "Tavily 密钥未配置，请用户在服务端配置后再搜索。",
+    "user": "尚未配置 Tavily 搜索密钥。",
+    "recovery": "user_action"
+  },
+  "tavily_timeout": {
+    "model": "搜索已超时，先检查是否已有结果，再决定是否再次搜索。",
+    "user": "Tavily 搜索超时。",
+    "recovery": "inspect_state"
+  },
+  "tavily_request_failed": {
+    "model": "搜索服务请求失败，请核对错误详情和服务配置。",
+    "user": "Tavily 搜索请求失败。",
+    "recovery": "inspect_state"
+  },
+  "tavily_invalid_response": {
+    "model": "搜索服务返回格式无效，不将响应当作有效证据。",
+    "user": "Tavily 搜索响应格式无效。",
+    "recovery": "inspect_state"
+  },
+  "invalid_ref": {
+    "model": "元素引用无效，请读取页面获取有效引用。",
+    "user": "页面元素引用无效。",
+    "recovery": "correct_arguments"
+  },
+  "invalid_selector": {
+    "model": "选择器无效，请修正选择器后再调用。",
+    "user": "页面选择器无效。",
+    "recovery": "correct_arguments"
+  },
+  "element_not_visible": {
+    "model": "元素当前不可见，请先检查页面和滚动位置。",
+    "user": "目标元素当前不可见。",
+    "recovery": "inspect_state"
+  },
+  "element_too_large": {
+    "model": "元素区域过大，请缩小截图范围。",
+    "user": "目标元素区域过大。",
+    "recovery": "correct_arguments"
+  },
+  "page_too_large": {
+    "model": "页面过大，请缩小读取或截图范围。",
+    "user": "页面内容超出本次处理范围。",
+    "recovery": "correct_arguments"
+  },
+  "provider_forbidden": {
+    "model": "模型服务拒绝请求（HTTP 403）。检查错误详情以区分权限与上游账号可用性问题，不直接认定密钥失效。",
+    "user": "模型服务拒绝请求（403），可能涉及权限或上游账号可用性。具体原因已保留在服务日志中。",
+    "recovery": "inspect_state"
+  },
+  "ambiguous_target": {
+    "model": "定位到多个匹配元素。用 matchIndex 指定序号，或收窄 name/文字后重试。",
+    "user": "目标不唯一，存在多个匹配项。",
+    "recovery": "correct_arguments"
+  },
+  "assertion_failed": {
+    "model": "页面断言未通过。逐项查看失败条件，确认页面实际状态后再决定重试或调整操作。",
+    "user": "页面断言未通过。",
+    "recovery": "inspect_state"
+  },
+  "dialog_handle_failed": {
+    "model": "原生弹窗处理失败。确认弹窗类型与要执行的动作后再调用。",
+    "user": "处理浏览器弹窗失败。",
+    "recovery": "inspect_state"
+  },
+  "empty_input": {
+    "model": "输入为空。补齐必填内容后再提交。",
+    "user": "请求内容为空。",
+    "recovery": "user_action"
+  },
+  "executor_version_mismatch": {
+    "model": "扩展执行器版本与服务不匹配。重新构建并加载扩展后再试。",
+    "user": "浏览器扩展版本与服务不匹配，请重新构建并加载扩展。",
+    "recovery": "user_action"
+  },
+  "invalid_mode": {
+    "model": "mode 取值无效。按工具定义改用受支持的取值。",
+    "user": "工具参数取值无效。",
+    "recovery": "correct_arguments"
+  },
+  "local_git_failed": {
+    "model": "本地 git 命令执行失败。查看错误详情与仓库状态后再决定下一步。",
+    "user": "本地 git 操作失败。",
+    "recovery": "inspect_state"
+  },
+  "missing_conversation": {
+    "model": "缺少会话标识。确认调用上下文后再重试。",
+    "user": "缺少会话标识。",
+    "recovery": "inspect_state"
+  },
+  "not_found": {
+    "model": "未找到目标。检查路径、名称或页面状态是否已变化后再重试。",
+    "user": "未找到目标对象。",
+    "recovery": "inspect_state"
+  },
+  "provider_unavailable": {
+    "model": "模型服务不可用。检查服务配置与网络后再决定是否重试。",
+    "user": "模型服务当前不可用。",
+    "recovery": "inspect_state"
+  },
+  "recheck_failed": {
+    "model": "页面复验条件未满足。确认页面实际状态后再决定下一步。",
+    "user": "页面复验未通过。",
+    "recovery": "inspect_state"
+  },
+  "target_not_found": {
+    "model": "未定位到目标元素。重新读取页面获取有效引用后再操作。",
+    "user": "未找到目标页面元素。",
+    "recovery": "inspect_state"
+  },
+  "unknown_conversation": {
+    "model": "会话不存在或已失效。确认会话标识后再重试。",
+    "user": "指定的会话不存在。",
+    "recovery": "inspect_state"
+  },
+  "wait_condition_pending": {
+    "model": "等待条件在超时前未满足。确认页面状态与等待条件后再决定是否重试。",
+    "user": "等待条件超时未满足。",
+    "recovery": "inspect_state"
+  },
+  "task_gate_required": {
+    "model": "该操作需要活动 Task：先用 task_set 写清步骤创建任务，再执行；收口、提问与记忆类工具无需 Task。",
+    "user": "该操作需要先创建任务步骤。",
+    "recovery": "inspect_state"
+  }
+}

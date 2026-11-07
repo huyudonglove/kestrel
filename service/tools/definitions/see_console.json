@@ -1,0 +1,35 @@
+{
+  "type": "function",
+  "function": {
+    "name": "see_console",
+    "description": "读取页面 console 日志（需页面已注入监听；开启后的日志才可读）。\n参数：level=error|warn|log|all（默认 error）；必填 tabId。\n返回：ok、count、items。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（从 tabs_current 等返回取得）。"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "log",
+            "all"
+          ],
+          "description": "日志级别：error、warn、log 或 all（默认 error）。"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

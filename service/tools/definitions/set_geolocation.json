@@ -1,0 +1,25 @@
+{
+  "type": "function",
+  "function": {
+    "name": "set_geolocation",
+    "description": "模拟地理位置。\n参数：latitude（纬度）、longitude（经度），可选 accuracy（精度）。\n返回：ok、latitude、longitude。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "execution": "serial"
+}

@@ -1,0 +1,64 @@
+{
+  "type": "function",
+  "function": {
+    "name": "page_click_text",
+    "description": "复合：按控件可见文字定位（find_on_page）→ 点击 → 可选等待。适合没有稳定 role/name 的文字按钮。\n参数：必填 tabId、text；可选 matchIndex、waitText、waitUrlContains、timeoutMs、status、limit。\n文字多匹配须 matchIndex，不默认取第一个。返回：ok、id、clicked、wait。 指定网络等待时先监听再点击，wait 保留脱敏JSON正文/缺失原因，并返回等待期间 pageFeedback 和 effects；HTTP成功不代表业务成功。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "frameId": {
+          "type": "integer",
+          "description": "内嵌文档编号，从 frame_list 取得；不传则作用于主文档。"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "控件可见文字 / value / aria-label"
+        },
+        "matchIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "多匹配时的命中序号（0 起），不传则不猜测"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "find_on_page 的 limit"
+        },
+        "waitText": {
+          "type": "string",
+          "description": "点击后等待页面出现该文本。"
+        },
+        "waitUrlContains": {
+          "type": "string",
+          "description": "点击后等待 URL 含该子串的响应。"
+        },
+        "status": {
+          "type": "integer",
+          "description": "waitUrlContains 时可选的 HTTP 状态码。"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "description": "点击后等待的超时毫秒；转发给 wait，默认 8000、上限 12000。",
+          "default": 8000,
+          "maximum": 12000
+        }
+      },
+      "required": [
+        "reason",
+        "tabId",
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

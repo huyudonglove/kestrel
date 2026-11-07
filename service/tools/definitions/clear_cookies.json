@@ -1,0 +1,24 @@
+{
+  "type": "function",
+  "function": {
+    "name": "clear_cookies",
+    "description": "清空 Cookie。\n参数：可选 origin（仅清理该来源相关；省略则尽量清空扩展可见的全部 Cookie）。\n返回：ok、cleared。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string",
+          "description": "例如 https://example.com"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

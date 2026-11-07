@@ -1,0 +1,33 @@
+{
+  "type": "function",
+  "function": {
+    "name": "scroll_to",
+    "description": "把元素滚进可视区。\n参数：text（按文本匹配）或 id（page.* 的 e_01/r_01，优先）；必填 tabId（目标标签编号）。\n返回：ok 及 tabId、title、url；未找到匹配元素时返回 ok=false 并附 error。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "id": {
+          "type": "string",
+          "description": "page.* 返回的 e_01/r_01 格式编号；与 text 二选一，有 id 时优先"
+        },
+        "text": {
+          "type": "string",
+          "description": "按页面文本匹配元素；未提供 id 时使用"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

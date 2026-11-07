@@ -1,0 +1,28 @@
+{
+  "type": "function",
+  "function": {
+    "name": "local_apply_patch",
+    "description": "在 Git 仓库工作区应用单文件或多文件 unified diff。仅对后续文件头和修改块可佐证的 diff --git 分界行移除误加的前导空格或制表符；若发生归一化，返回 normalization 类型及原补丁中的行号。先用 git apply --recount --check 检查完整补丁，通过后应用；检查失败不修改文件，不放宽上下文检查。返回仓库根目录和补丁涉及的相对文件路径。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Git 仓库内的绝对目录路径；补丁路径相对于仓库根目录"
+        },
+        "patch": {
+          "type": "string",
+          "minLength": 1,
+          "description": "单文件或多文件 git unified diff；新增或删除整个文件使用 /dev/null（无需上下文）。修改已有文件时请保留修改块前后未修改的原文行，以空格为前缀；不要只传 -旧行/+新行的零上下文局部修改块。使用 Git 默认检查，不启用 --unidiff-zero；--recount 仅按正文重算 @@ 行数，不放宽上下文检查。仍需合法文件头、块头、每行前缀及匹配的原文，补丁以换行结束"
+        },
+        "reason": {
+          "type": "string",
+          "description": "应用补丁的目的"
+        }
+      },
+      "required": ["path", "patch", "reason"],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

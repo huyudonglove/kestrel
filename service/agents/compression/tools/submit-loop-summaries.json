@@ -1,0 +1,59 @@
+{
+  "type": "function",
+  "function": {
+    "name": "submitLoopSummaries",
+    "description": "提交本次压缩或摘要折叠的结果。每次调用是一条 {userRequest, state, constraints, pending, decisions}，五项均由模型归纳。输入为 compressionLoops 时，把整批归纳为一条摘要；若一次回复提交了多条，Runtime 会合并成一条记录并归属提供的 loop 批次。输入为 summaryFold 时提交一条合并纪要。归纳而不截断，合并重复事实，逐条核对仍有效约束与未决事项，区分历史引用、旧状态和当前状态。不要提交 loopIds 或在正文罗列来源编号，Runtime 会填写准确 loopIds。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userRequest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "归纳用户要求与目标，不逐字拼接或截断输入。"
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "归纳实际执行、已验证结果、重要失败与当前进展；区分计划、执行证据和模型声明，明确历史引用和旧状态。"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "description": "逐条保留仍有效的用户约束，合并重复项；只有材料明确表明完成、撤销或替代时才能移除，不因后文未提及而遗漏。没有内容时填 []。"
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "description": "逐条保留尚未解决、完成或确认的事项，合并重复项；只有材料明确表明完成、撤销或替代时才能移除，不因后文未提及而遗漏。没有内容时填 []。"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "description": "归纳关键决策及原因和明确的自我纠正，合并重复项，不编造决策。没有内容时填 []。"
+        }
+      },
+      "required": [
+        "userRequest",
+        "state",
+        "constraints",
+        "pending",
+        "decisions"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "type": "function",
+  "function": {
+    "name": "evidence_search",
+    "description": "从工具返回或页面观察的统一索引取证，一次最多 8 个窗口。目录与搜索优先展示 fileContent（解码后的文件源码），toolResult 标识原始工具返回包装。本工具读取当次返回快照，不代表文件当前版本。每项 callId/pageId 二选一；不传 blockId/keyword 时读取根目录，传 blockId 读取该目录或完整原文块，传 keyword 搜索并返回可读取的 blockId。外置返回的 directory 已附根目录；目录自身的 blockId 是当前节点，下一步选择 children[].blockId 读取子块，已知符号或关键字时直接用 keyword 定位。kind=directory 表示目录，kind=content 才是完整原文，kind=search 表示搜索命中。命中片段用于定位，不能当作完整作用域；需要上下文或精确修改原文时再用 blockId 读取。搜索有 nextOffset 且当前问题还需要更多命中时，用相同来源和 keyword 加 offset 继续；证据足够即可停止检索，只有要证明穷尽结果时才需完成搜索。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "windows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "最多 8 个独立取证窗口，每个窗口均返回结果；原文块完整返回。",
+          "items": {
+            "type": "object",
+            "properties": {
+              "callId": {
+                "type": "string",
+                "description": "工具调用 ID，与 pageId 二选一"
+              },
+              "pageId": {
+                "type": "string",
+                "description": "页面观察 ID，与 callId 二选一"
+              },
+              "blockId": {
+                "type": "string",
+                "description": "目录或原文块 ID；与 keyword 二选一，均不传时读根目录"
+              },
+              "keyword": {
+                "type": "string",
+                "description": "在原文中搜索，返回匹配块 ID 与命中片段"
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "仅用于 keyword 搜索，传上次返回的 nextOffset 继续"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "reason",
+        "windows"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel",
+  "mutex": [
+    [
+      "callId",
+      "pageId"
+    ]
+  ]
+}

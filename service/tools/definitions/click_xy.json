@@ -1,0 +1,42 @@
+{
+  "type": "function",
+  "function": {
+    "name": "click_xy",
+    "description": "按坐标点击。\n参数：point=[x,y]，也可传 x、y；必填 tabId（目标标签编号）。\n返回：ok、point。滑块不要点，用 calibrate_drag。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "point": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          },
+          "description": "视口坐标 [x,y]"
+        },
+        "x": {
+          "type": "number",
+          "description": "没有 point 时的横坐标"
+        },
+        "y": {
+          "type": "number",
+          "description": "没有 point 时的纵坐标"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

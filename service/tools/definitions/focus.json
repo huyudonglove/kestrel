@@ -1,0 +1,65 @@
+{
+  "type": "function",
+  "function": {
+    "name": "focus",
+    "description": "把焦点放到匹配 text 的元素上。\n参数：可选 ref、text；必填 tabId（目标标签编号）。\n返回：ok。\nref：snapshot_page 或 find_on_page 返回的元素 ref；有 ref 时优先使用。\ntext：没有 ref 时按控件可见文字、value 或 aria-label 定位。\n必须提供 ref 或非空 text。ref 无效时明确失败，不回退按文字操作。text 匹配多个控件时返回歧义，请先查找并提供 ref；不可混用 page.* 的 id。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "page.* 或 snapshot 返回的 e_ 编号",
+          "pattern": "^(?:e|r)_[0-9]{2,}$",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "description": "没有 ref 时按控件可见文字、value 或 aria-label 定位",
+          "minLength": 1
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "ref"
+          ],
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "参数含义见工具说明。",
+              "pattern": "^(?:e|r)_[0-9]{2,}$",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "text"
+          ],
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "没有 ref 时按控件可见文字、value 或 aria-label 定位",
+              "minLength": 1
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

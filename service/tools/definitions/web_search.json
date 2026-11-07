@@ -1,0 +1,34 @@
+{
+  "type": "function",
+  "function": {
+    "name": "web_search",
+    "description": "搜索公开网页。\n参数：query（搜索词）；可选 heartbeatSec（正整数秒，到点仍在执行则返回 heartbeat=true + jobId）。\n返回：ok、urls（结果网址列表）。心跳用 job_status / job_stop。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string",
+          "description": "搜索词。"
+        },
+        "text": {
+          "type": "string",
+          "description": "搜索词"
+        },
+        "heartbeatSec": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "可选心跳秒数；搜索在该时间后仍在执行则提前返回 heartbeat=true + jobId"
+        }
+      },
+      "required": [
+        "reason",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

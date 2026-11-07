@@ -1,0 +1,31 @@
+{
+  "type": "function",
+  "function": {
+    "name": "page_find",
+    "description": "使用 window.find 在页面内查找并选中文本，可能滚动页面；不会打开浏览器 Ctrl+F 面板，也不返回可点击元素编号。参数：query 必填，必填 tabId。返回：ok、found、text（选中文本）、rect（匹配位置，未找到为null）。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "description": "要查找的文本，必填。"
+        }
+      },
+      "required": [
+        "reason",
+        "query",
+        "tabId"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "execution": "parallel"
+}

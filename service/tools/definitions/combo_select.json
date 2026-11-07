@@ -1,0 +1,35 @@
+{
+  "type": "function",
+  "function": {
+    "name": "combo_select",
+    "description": "对 SELECT 下拉框按 value 或选项文字选择。\n参数：必填 id（e_）、value、tabId。\n返回：ok、value、text。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得）。"
+        },
+        "id": {
+          "type": "string",
+          "description": "page.* 返回的 e_01 格式元素编号，原样传入。"
+        },
+        "value": {
+          "type": "string",
+          "description": "选项 value 或 option 文字（子串）"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId",
+        "id",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

@@ -1,0 +1,49 @@
+{
+  "type": "function",
+  "function": {
+    "name": "emulate_device",
+    "description": "模拟设备视口与 UA。\n参数：可选 device 预设名，或 width/height/deviceScaleFactor/mobile/userAgent；必填 tabId。\n返回：ok、device、width、height。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（从 tabs_current 等返回取得）。"
+        },
+        "device": {
+          "type": "string",
+          "description": "设备预设名，未知名称时回退桌面配置"
+        },
+        "width": {
+          "type": "integer",
+          "description": "视口宽度（CSS 像素）。"
+        },
+        "height": {
+          "type": "integer",
+          "description": "视口高度（CSS 像素）。"
+        },
+        "deviceScaleFactor": {
+          "type": "number",
+          "description": "设备像素比。"
+        },
+        "mobile": {
+          "type": "boolean",
+          "description": "是否模拟移动设备。"
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "要覆盖的 User-Agent。"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

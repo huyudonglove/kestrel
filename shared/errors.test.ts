@@ -1,0 +1,65 @@
+import { describe, expect, test } from "bun:test";
+import catalog from "./error-messages.json";
+import { AppError, errorInfo, errorMessage, errorRecovery, modelSpeech } from "./errors.ts";
+
+describe("shared errors", () => {
+  test("preserves structured errors and their diagnostic details", () => {
+    const cause = new Error("disk full");
+    const error = new AppError("compression_failed", "write failed", { path: "/data" }, { cause });
+    expect(error.cause).toBe(cause);
+    expect(errorInfo(error)).toEqual({ faultCode: "compression_failed", detail: "write failed", details: { path: "/data" } });
+    expect(errorInfo({ faultCode: "custom_code", detail: "domain detail", details: { value: 2 } })).toEqual({
+      faultCode: "custom_code", detail: "domain detail", details: { value: 2 },
+    });
+  });
+
+  test("maps platform errors without losing their original messages", () => {
+    for (const [code, faultCode] of Object.entries({ ENOENT: "file_not_found", EACCES: "permission_denied", EPERM: "permission_denied", ENOTDIR: "invalid_path", EEXIST: "file_exists" })) {
+      expect(errorInfo(Object.assign(new Error("original detail"), { code }))).toEqual({ faultCode, detail: "original detail" });
+    }
+    expect(errorInfo(new DOMException("cancelled", "AbortError")).faultCode).toBe("stopped");
+    expect(errorInfo(Object.assign(new Error("idle"), { name: "HttpIdleTimeoutError" })).faultCode).toBe("http_idle_timeout");
+    expect(errorInfo(new Error("unknown"), "query_failed")).toEqual({ faultCode: "query_failed", detail: "unknown" });
+  });
+
+  test("unknown errors have safe recovery rather than automatic retry", () => {
+    for (const code of ["unknown_future_code", "tool_timeout", "http_idle_timeout", "toString", "__proto__"]) {
+      expect(errorRecovery(code)).toBe("inspect_state");
+      expect(typeof errorMessage(code, "model")).toBe("string");
+    }
+    expect(errorInfo("plain error")).toEqual({ faultCode: "tool_execution_failed", detail: "plain error" });
+    expect(errorInfo(null).detail).toBe(errorMessage("tool_execution_failed", "model"));
+    expect(errorRecovery("stopped")).toBe("none");
+    expect(errorRecovery("wrong_type")).toBe("correct_arguments");
+    expect(errorInfo({ code: "toString" }).faultCode).toBe("tool_execution_failed");
+  });
+
+  test("all model catalog messages share the runtime: prefix; user copy does not", () => {
+    for (const code of Object.keys(catalog)) {
+      expect(errorMessage(code, "model").startsWith("runtime: "), code).toBe(true);
+      expect(errorMessage(code, "user").startsWith("runtime: "), code).toBe(false);
+    }
+    expect(errorMessage("unknown_future_code", "model").startsWith("runtime: ")).toBe(true);
+    expect(errorMessage("unknown_future_code", "user").startsWith("runtime: ")).toBe(false);
+    expect(modelSpeech("disk full")).toBe("runtime: disk full");
+    expect(modelSpeech("runtime: already")).toBe("runtime: already");
+  });
+
+  test("every catalog entry has both audiences and a valid recovery", () => {
+    for (const [code, entry] of Object.entries(catalog)) {
+      expect(entry.model.trim().length, code).toBeGreaterThan(0);
+      expect(entry.user.trim().length, code).toBeGreaterThan(0);
+      expect(["correct_arguments", "inspect_state", "user_action", "retry", "none"]).toContain(entry.recovery);
+    }
+  });
+});
+
+test("errorDetail dispatches static templates and fills placeholders", async () => {
+  const { errorDetail } = await import("./error-details.ts");
+  expect(errorDetail("arguments_json_concat")).toContain("正确写法示例");
+  expect(errorDetail("arguments_json_concat")).toContain("local_fs_search");
+  expect(errorDetail("task_set_empty_items")).toBe("task_set 需要非空 items");
+  expect(errorDetail("skill_unknown", { id: "foo" })).toBe("未知技能 foo");
+  expect(errorDetail("task_not_found", { id: "plan_09" })).toBe("Task plan_09 不存在");
+  expect(errorDetail("missing_detail_key")).toBe("detail:missing_detail_key");
+});

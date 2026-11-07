@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kestrel</title>
+<style>
+
+  :root {
+    color-scheme: light;
+    --bg: #f9f8f6;
+    --bg-tint: #f4f2ee;
+    --surface: #ffffff;
+    --line: #e7e4de;
+    --line-strong: #d9d5ce;
+    --ink: #1e1e24;
+    --ink-2: #3b3940;
+    --dim: #6d6a67;
+    --faint: #9a9691;
+    --accent: #3950e6;
+    --accent-ink: #6073f0;
+    --accent-soft: #eef0fe;
+    --green: #2f7d4f;
+    --shadow-sm: 0 1px 2px rgba(30, 30, 36, .05);
+    --shadow-md: 0 6px 20px rgba(30, 30, 36, .07);
+    --shadow-lg: 0 18px 48px rgba(30, 30, 36, .12);
+    --r-sm: 8px;
+    --r-md: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.6 "Geist", "Inter", -apple-system, "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: #dfe3ff; }
+  .app { display: grid; grid-template-columns: minmax(360px, 33vw) 1fr; grid-template-rows: 100%; height: 100vh; overflow: hidden; }
+
+  #messages::-webkit-scrollbar, .stage::-webkit-scrollbar, #convPanel::-webkit-scrollbar { width: 10px; height: 10px; }
+  #messages::-webkit-scrollbar-thumb, .stage::-webkit-scrollbar-thumb, #convPanel::-webkit-scrollbar-thumb {
+    background: #ddd8d0; border: 3px solid transparent; background-clip: content-box; border-radius: 99px;
+  }
+  #messages::-webkit-scrollbar-thumb:hover, .stage::-webkit-scrollbar-thumb:hover { background: #c6c0b6; background-clip: content-box; }
+
+  /* ---------- 左：对话 ---------- */
+  .chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden;
+    background: var(--bg); border-right: 1px solid var(--line-strong); }
+  .chat > header { display: flex; align-items: center; gap: 10px; height: 60px; flex: none; padding: 0 18px;
+    background: var(--bg); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+  .brand .mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px;
+    background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; line-height: 1; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px 3px 8px; }
+  .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #b8b2a9; flex: none; }
+  .status.busy { color: var(--green); border-color: #cfe3d6; background: #f2f8f4; }
+  .status.busy::before { background: var(--green); box-shadow: 0 0 0 3px rgba(47, 125, 79, .12); animation: pulse 1.6s ease-in-out infinite; }
+  .status.warn { color: #a35a1e; border-color: #f0d7c2; background: #fff7f1; }
+  .status.warn::before { background: #d08a4a; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  .spacer { flex: 1; }
+  button { background: var(--ink); color: #fff; border: 0; border-radius: var(--r-sm); padding: 9px 16px;
+    font: inherit; font-weight: 600; font-size: 14px; cursor: pointer;
+    transition: background .15s ease, transform .05s ease, box-shadow .15s ease; }
+  button:hover { background: #302e35; }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.ghost { background: var(--surface); color: var(--ink-2); border: 1px solid var(--line-strong);
+    font-weight: 500; font-size: 12.5px; padding: 6px 11px; border-radius: var(--r-sm); box-shadow: var(--shadow-sm); }
+  button.ghost:hover { background: #fff; border-color: #c6c0b6; color: var(--ink); }
+  #convPanel { display: none; flex: none; border-bottom: 1px solid var(--line); background: var(--surface);
+    max-height: 200px; overflow: auto; }
+  #convPanel.show { display: block; }
+  #convPanel .item { padding: 9px 18px; font-size: 13px; color: var(--dim); cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 2px solid transparent; }
+  #convPanel .item:hover { background: var(--bg-tint); color: var(--ink); }
+  #convPanel .item.active { border-left-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+  #task { display: none; flex: none; font-size: 12px; color: var(--dim); padding: 8px 18px;
+    border-bottom: 1px solid var(--line); background: var(--bg-tint); }
+  #task.show { display: block; }
+  #task .step { display: inline-block; margin-right: 12px; }
+  #task .step.done { color: var(--green); }
+  #task .step.doing { color: var(--accent); }
+  #messages { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 20px 18px 10px;
+    display: flex; flex-direction: column; gap: 14px;
+    background: radial-gradient(1200px 380px at 18% -12%, #ffffff 0%, rgba(255, 255, 255, 0) 62%), var(--bg); }
+
+  /* 消息：头像 + 名字 + 相对时间，助手正文不套气泡 */
+  .turn { display: flex; flex-direction: column; gap: 10px; }
+  .block { display: flex; flex-direction: column; gap: 6px; animation: rise .18s ease-out; }
+  .block.user { align-items: flex-end; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .meta { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--faint); }
+  .avatar { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px;
+    background: var(--ink); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 1; flex: none; }
+  .avatar.user { background: #8b8780; }
+  .meta .who { color: var(--ink-2); font-weight: 600; font-size: 12.5px; }
+  .body { white-space: pre-wrap; word-break: break-word; }
+  .body.user { max-width: 92%; background: var(--ink); border: 1px solid var(--ink); color: #fff;
+    border-radius: var(--r-md); padding: 10px 13px; box-shadow: var(--shadow-md); font-size: 14.5px; }
+  .body.assistant { font-size: 14.5px; line-height: 1.72; color: var(--ink); }
+  code { background: var(--bg-tint); border: 1px solid var(--line); border-radius: 5px;
+    padding: 0 4px; font-size: .92em; }
+  .body.user code { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22); color: #fff; }
+  /* 助手正文走轻量 Markdown，块级元素自己排版，不再靠 pre-wrap */
+  .body.md { white-space: normal; }
+  .body.md p { margin: 0 0 10px; }
+  .body.md p:last-child { margin: 0; }
+  .body.md h1, .body.md h2, .body.md h3 { margin: 14px 0 8px; font-size: 14.5px; line-height: 1.45; font-weight: 700; }
+  .body.md h1:first-child, .body.md h2:first-child, .body.md h3:first-child { margin-top: 0; }
+  .body.md ul, .body.md ol { margin: 0 0 10px; padding-left: 20px; }
+  .body.md li { margin: 3px 0; }
+  .body.md strong { font-weight: 700; }
+  .body.md a { color: var(--accent); text-decoration: none; }
+  .body.md a:hover { text-decoration: underline; }
+  .body.md pre { margin: 0 0 10px; padding: 10px 12px; background: var(--bg-tint);
+    border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+  .body.md pre code { background: none; border: 0; border-radius: 0; padding: 0; font-size: 12.5px; }
+  .body.md hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+
+  /* 活动行：把一次 turn 的工具调用收成可折叠的一组 */
+  .act { border: 1px solid var(--line); background: rgba(255, 255, 255, .72); border-radius: 10px;
+    padding: 2px 12px; box-shadow: var(--shadow-sm); }
+  .act-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 0; text-align: left;
+    background: none; border: 0; border-radius: 0; font: inherit; font-size: 12.5px; font-weight: 500;
+    color: var(--dim); cursor: pointer; }
+  .act-head:hover { background: none; color: var(--ink); }
+  .act-head .chev { width: 10px; font-size: 10px; color: var(--faint); flex: none; }
+  .act-head .act-live { margin-left: auto; color: #a35a1e; font-size: 11.5px; }
+  .act-body { display: none; border-top: 1px dashed var(--line); padding: 5px 0 6px; }
+  .act.open .act-body { display: block; }
+  .act-row { display: flex; flex-direction: column; gap: 4px; margin: 5px 0 5px 3px; padding: 3px 0 3px 13px;
+    border-left: 2px solid var(--line); font-size: 12.5px; line-height: 1.55; color: var(--dim); }
+  .act-row.live { border-left-color: #f0c9a8; color: #a35a1e; }
+  .act-name { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .act-row.live .act-name { color: #a35a1e; }
+  .act-text { white-space: pre-wrap; word-break: break-word; }
+  .shot { display: block; width: 100%; height: auto; max-height: 360px; object-fit: contain; object-position: top center;
+    margin-top: 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-sm); }
+  .empty { margin: auto; color: var(--faint); text-align: center; line-height: 2; font-size: 13.5px; }
+
+  /* 输入卡：上面写内容，下面一行工具条 */
+  #composer { flex: none; display: flex; flex-direction: column; gap: 8px; margin: 0 18px 16px; padding: 10px 10px 8px 14px;
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px;
+    box-shadow: var(--shadow-md); transition: border-color .15s ease, box-shadow .15s ease; }
+  #composer:focus-within { border-color: #c6c0b6; box-shadow: var(--shadow-lg); }
+  .composer-main { display: flex; align-items: flex-end; gap: 8px; }
+  #composer textarea { flex: 1; resize: none; height: 44px; min-height: 44px; background: transparent; color: var(--ink);
+    border: 0; border-radius: 0; padding: 9px 0 6px; font: inherit; outline: none; box-shadow: none; }
+  #composer textarea::placeholder { color: var(--faint); }
+  #send { flex: none; width: 34px; height: 34px; padding: 0; display: grid; place-items: center;
+    border-radius: 999px; font-size: 15px; line-height: 1; }
+  .composer-bar { display: flex; align-items: center; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500; color: var(--dim);
+    background: var(--bg-tint); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  button.chip { background: var(--bg-tint); color: var(--dim); padding: 3px 10px; font-size: 11.5px; font-weight: 500; }
+  button.chip:hover { background: #fff; color: var(--ink); border-color: var(--line-strong); }
+  .composer-bar .hint { font-size: 11px; color: var(--faint); }
+
+  /* ---------- 右：实时预览 ---------- */
+  .preview { display: flex; flex-direction: column; min-width: 0; background: var(--bg-tint); }
+  .preview > header { display: flex; align-items: center; gap: 10px; height: 60px; flex: none; padding: 0 18px;
+    background: var(--bg); border-bottom: 1px solid var(--line); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #c9c4bd; flex: none; }
+  .dot.live { background: var(--green); box-shadow: 0 0 0 4px rgba(47, 125, 79, .14); }
+  .addr { flex: 1; min-width: 0; font-size: 12.5px; color: var(--dim); background: var(--surface);
+    border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: var(--shadow-sm); }
+  .addr b { color: var(--ink); font-weight: 600; }
+  .stage { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 22px;
+    background-image: radial-gradient(rgba(30, 30, 36, .07) 1px, transparent 1px); background-size: 18px 18px; background-position: -1px -1px; }
+  .stage iframe.pframe { flex: 1; align-self: stretch; width: 100%; height: 100%; min-height: 300px; background: #fff;
+    border: 1px solid var(--line-strong); border-radius: var(--r-md); box-shadow: var(--shadow-lg); }
+  .stage .placeholder { margin: auto; max-width: 340px; padding: 26px 30px; background: var(--surface);
+    border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--faint);
+    text-align: center; line-height: 2; font-size: 13px; }
+  .preview > footer { flex: none; display: flex; align-items: center; gap: 12px; padding: 9px 18px;
+    border-top: 1px solid var(--line); background: var(--bg); font-size: 12px; color: var(--dim); }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="chat">
+    <header>
+      <span class="brand"><span class="mark">K</span>kestrel</span>
+      <span class="status" id="status">空闲</span>
+      <span class="spacer"></span>
+      <button class="ghost" id="convToggle">会话</button>
+      <button class="ghost" id="newConv">＋ 新</button>
+    </header>
+    <div id="convPanel"></div>
+    <div id="task"></div>
+    <div id="messages"><div class="empty">把要做的事说清楚，Kestrel 会自己调用工具、操作浏览器。</div></div>
+    <form id="composer">
+      <div class="composer-main">
+        <textarea id="input" placeholder="说说要做什么"></textarea>
+        <button id="send" type="submit" aria-label="发送">↑</button>
+      </div>
+      <div class="composer-bar">
+        <button class="chip" type="button" id="cnew">＋ 新会话</button>
+        <span class="chip" id="modelChip">agent</span>
+        <span class="chip" id="modeChip">Agent</span>
+        <span class="spacer"></span>
+        <span class="hint">⌘↵ 发送</span>
+      </div>
+    </form>
+  </section>
+  <section class="preview">
+    <header>
+      <span class="dot" id="pdot"></span>
+      <span class="addr" id="paddr"><b>预览</b> · 等待 agent 打开页面</span>
+      <button class="ghost" id="prefresh">刷新</button>
+      <button class="ghost" id="popen">在新标签打开</button>
+    </header>
+    <div class="stage" id="pstage"><div class="placeholder">agent 操作页面时，这里会嵌入它正在浏览的页面，可直接点击和输入</div></div>
+    <footer>
+      <span id="pmeta">尚未开始</span>
+      <span class="spacer"></span>
+      <span id="phint">嵌入预览</span>
+    </footer>
+  </section>
+</div>
+<script>
+const state = { conversationId: null, busy: false, conversations: [], expanded: new Set() };
+/* 右栏固定用真实 iframe 嵌入 agent 正在操作的页面，点击/输入都是浏览器原生行为。 */
+const preview = { tabId: null, url: "", title: "", at: 0, embeddable: false };
+
+const $ = (id) => document.getElementById(id);
+const esc = (text) => String(text ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pretty = (text) => esc(text).replace(/`([^`]+)`/g, "<code>$1</code>");
+
+/* 轻量 Markdown：段落、列表、标题、代码块、粗体/斜体/行内代码 */
+function mdInline(text) {
+  return esc(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(（])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[\s(（])_([^_\n]+)_/g, "$1<em>$2</em>");
+}
+
+function md(text) {
+  const lines = String(text ?? "").split("\n");
+  const out = [];
+  let list = null;
+  let fence = null;
+  let buf = [];
+  const flush = () => { if (buf.length) { out.push(`<p>${mdInline(buf.join(" "))}</p>`); buf = []; } };
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    if (fence) {
+      if (/^\s*```/.test(line)) { out.push(`<pre><code>${esc(fence.join("\n"))}</code></pre>`); fence = null; }
+      else fence.push(raw);
+      continue;
+    }
+    if (/^\s*```/.test(line)) { flush(); closeList(); fence = []; continue; }
+    if (!line.trim()) { flush(); closeList(); continue; }
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    if (heading) {
+      flush(); closeList();
+      const level = Math.min(4, heading[1].length) + 2;
+      out.push(`<h${level}>${mdInline(heading[2])}</h${level}>`);
+      continue;
+    }
+    if (/^[-*+]\s+/.test(line)) {
+      flush();
+      if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; }
+      out.push(`<li>${mdInline(line.replace(/^[-*+]\s+/, ""))}</li>`);
+      continue;
+    }
+    if (/^\d+[.)]\s+/.test(line)) {
+      flush();
+      if (list !== "ol") { closeList(); out.push("<ol>"); list = "ol"; }
+      out.push(`<li>${mdInline(line.replace(/^\d+[.)]\s+/, ""))}</li>`);
+      continue;
+    }
+    buf.push(line);
+  }
+  flush(); closeList();
+  if (fence) out.push(`<pre><code>${esc(fence.join("\n"))}</code></pre>`);
+  return out.join("");
+}
+
+async function api(path, init) {
+  const response = await fetch(path, {
+    headers: { "content-type": "application/json" },
+    ...init,
+  });
+  const text = await response.text();
+  try { return JSON.parse(text); } catch { return { ok: response.ok, raw: text }; }
+}
+
+/* ---------- 消息渲染 ---------- */
+function relTime(iso) {
+  if (!iso) return "";
+  const started = new Date(iso).getTime();
+  if (!started) return "";
+  const seconds = Math.max(0, Math.round((Date.now() - started) / 1000));
+  if (seconds < 45) return "刚刚";
+  if (seconds < 3600) return `${Math.round(seconds / 60)} 分钟前`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} 小时前`;
+  return `${Math.round(seconds / 86400)} 天前`;
+}
+
+function metaRow(role, at, extra) {
+  const isUser = role === "user";
+  const stamp = relTime(at);
+  const tail = extra ? `<span>· ${esc(extra)}</span>` : "";
+  return `<div class="meta"><span class="avatar ${isUser ? "user" : ""}">${isUser ? "H" : "K"}</span>` +
+    `<span class="who">${isUser ? "你" : "kestrel"}</span>` +
+    `${stamp ? `<span>${esc(stamp)}</span>` : ""}${tail}</div>`;
+}
+
+function groupTurns(messages) {
+  const turns = [];
+  for (const message of messages) {
+    const key = message.turnId || "turn";
+    let turn = turns.find((item) => item.turnId === key);
+    if (!turn) { turn = { turnId: key, at: message.at, users: [], tools: [], replies: [] }; turns.push(turn); }
+    if (!turn.at && message.at) turn.at = message.at;
+    if (message.role === "user") turn.users.push(message);
+    else if (message.role === "tool") turn.tools.push(message);
+    else turn.replies.push(message);
+  }
+  return turns;
+}
+
+function renderActivity(view, turn) {
+  const live = turn.tools.some((item) => item.live);
+  const open = live || state.expanded.has(turn.turnId);
+  const reply = turn.replies.find((item) => item.durationMs != null);
+  const seconds = reply?.durationMs ? Math.max(1, Math.round(reply.durationMs / 1000)) : null;
+  const count = turn.tools.length;
+  const head = open
+    ? `思考过程 · ${count} 步${seconds ? ` · ${seconds}s` : ""}`
+    : `思考了${seconds ? ` ${seconds}s` : ""} · ${count} 步`;
+  const rows = turn.tools.map((message) => {
+    const shots = (message.images ?? []).map((image) =>
+      `<img class="shot" src="/images/${encodeURIComponent(view.conversationId)}/${encodeURIComponent(image.id)}" alt="${esc(image.id)}" loading="eager" />`
+    ).join("");
+    return `<div class="act-row ${message.live ? "live" : ""}">` +
+      `<span class="act-name">${esc(message.name || "tool")}</span>` +
+      `<span class="act-text">${pretty(message.text || "")}</span>${shots}</div>`;
+  }).join("");
+  return `<div class="act ${open ? "open" : ""}" data-turn="${esc(turn.turnId)}" data-seconds="${seconds ?? ""}">` +
+    `<button class="act-head" type="button"><span class="chev">${open ? "▾" : "▸"}</span>` +
+    `<span class="act-title">${esc(head)}</span>${live ? '<span class="act-live">执行中</span>' : ""}</button>` +
+    `<div class="act-body">${rows}</div></div>`;
+}
+
+let lastMessagesHTML = null;
+function renderMessages(view) {
+  const box = $("messages");
+  const messages = view?.messages ?? [];
+  const html = !messages.length
+    ? '<div class="empty">把要做的事说清楚，Kestrel 会自己调用工具、操作浏览器。</div>'
+    : groupTurns(messages).map((turn) => {
+      const parts = [];
+      for (const message of turn.users) {
+        parts.push(`<div class="block user">${metaRow("user", message.at)}` +
+          `<div class="body user">${pretty(message.text)}</div></div>`);
+      }
+      if (turn.tools.length) parts.push(renderActivity(view, turn));
+      for (const message of turn.replies) {
+        const seconds = message.durationMs ? `${Math.max(1, Math.round(message.durationMs / 1000))}s` : "";
+        parts.push(`<div class="block assistant">${metaRow("assistant", message.at ?? turn.at, seconds)}` +
+          `<div class="body assistant md">${md(message.text)}</div></div>`);
+      }
+      return `<div class="turn">${parts.join("")}</div>`;
+    }).join("");
+  // 轮询期间数据没变就不要重写 DOM：整块 innerHTML 会把消息里的截图 <img>
+  // 和折叠中的活动行一起重新创建一遍，视觉上就是一闪一闪。
+  if (html === lastMessagesHTML) return;
+  lastMessagesHTML = html;
+  // 即使内容变了（agent 每步都会追加工具行），也不能让已解码的截图重新走一遍
+  // 空白 -> 解码 -> 绘制；按 src 把旧的 <img> 节点搬到新结构里复用位图。
+  const reused = new Set();
+  const loaded = new Map();
+  for (const img of box.querySelectorAll("img.shot")) {
+    const src = img.getAttribute("src");
+    if (src && img.complete && img.naturalWidth > 0) loaded.set(src, img);
+  }
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  box.innerHTML = html;
+  if (loaded.size) {
+    for (const img of [...box.querySelectorAll("img.shot")]) {
+      const old = loaded.get(img.getAttribute("src"));
+      if (old && old !== img && !reused.has(old)) { reused.add(old); img.replaceWith(old); }
+    }
+  }
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function toggleActivity(head) {
+  const act = head.closest(".act");
+  if (!act) return;
+  const turnId = act.dataset.turn;
+  if (!turnId) return;
+  if (state.expanded.has(turnId)) state.expanded.delete(turnId); else state.expanded.add(turnId);
+  const open = state.expanded.has(turnId);
+  act.classList.toggle("open", open);
+  const chev = head.querySelector(".chev");
+  if (chev) chev.textContent = open ? "▾" : "▸";
+  const title = head.querySelector(".act-title");
+  const count = act.querySelectorAll(".act-row").length;
+  const seconds = act.dataset.seconds ? Number(act.dataset.seconds) : null;
+  if (title) title.textContent = open
+    ? `思考过程 · ${count} 步${seconds ? ` · ${seconds}s` : ""}`
+    : `思考了${seconds ? ` ${seconds}s` : ""} · ${count} 步`;
+}
+
+function renderTask(view) {
+  const node = $("task");
+  const task = view?.task?.task;
+  if (!task || !task.items?.length) { node.className = ""; node.innerHTML = ""; return; }
+  node.className = "show";
+  node.innerHTML = `<b>${esc(task.title || task.id)}</b> · ` + task.items.map((item) =>
+    `<span class="step ${esc(item.status)}">${item.status === "done" ? "✓" : item.status === "doing" ? "▸" : "·"} ${esc(item.text)}</span>`
+  ).join("");
+}
+
+function renderConversations(items, current) {
+  const panel = $("convPanel");
+  panel.innerHTML = (items ?? []).map((item) =>
+    `<div class="item ${item.conversationId === current ? "active" : ""}" data-id="${esc(item.conversationId)}">${esc(item.preview || item.conversationId)}</div>`
+  ).join("") || '<div class="item">还没有会话</div>';
+  for (const node of panel.querySelectorAll(".item[data-id]")) {
+    node.addEventListener("click", () => { openConversation(node.dataset.id); panel.classList.remove("show"); });
+  }
+}
+
+async function refresh() {
+  const query = state.conversationId ? `?conversationId=${encodeURIComponent(state.conversationId)}` : "";
+  const view = await api(`/session${query}`);
+  if (view?.conversationId && view.conversationId !== state.conversationId) state.conversationId = view.conversationId;
+  renderMessages(view);
+  renderTask(view);
+  const status = view?.status ?? "idle";
+  const busy = status === "running";
+  const failed = status === "failed";
+  $("status").textContent = busy ? "运行中" : failed ? "上一轮出错" : "空闲";
+  $("status").className = busy ? "status busy" : failed ? "status warn" : "status";
+  // 刷新页面（或换标签/重开）时这一轮可能还在跑：轮询必须自己恢复，
+  // 否则左栏就停在上一次渲染，看起来像「没有回复了 / 会话丢了」。
+  if (busy && !polling) startPolling();
+  return view;
+}
+
+async function loadConversations() {
+  const data = await api("/conversations");
+  state.conversations = data?.items ?? [];
+  renderConversations(state.conversations, state.conversationId);
+}
+
+async function openConversation(conversationId) {
+  if (!conversationId) return;
+  await api("/conversations/open", { method: "POST", body: JSON.stringify({ conversationId }) });
+  state.conversationId = conversationId;
+  await refresh();
+  await loadConversations();
+}
+
+async function newConversation() {
+  const data = await api("/conversations/new", { method: "POST", body: "{}" });
+  const id = data?.conversationId ?? data?.session?.conversationId ?? null;
+  state.conversationId = id;
+  await refresh();
+  await loadConversations();
+}
+
+let polling = null;
+function startPolling() {
+  if (polling) return;
+  polling = setInterval(async () => {
+    const view = await refresh();
+    // 只要这一轮还在 running 就继续刷新；idle / failed / 拿不到视图都算结束。
+    if (!view || view.status !== "running") {
+      clearInterval(polling);
+      polling = null;
+      $("send").disabled = false;
+      state.busy = false;
+    }
+  }, 900);
+}
+
+async function send(event) {
+  if (event) event.preventDefault();
+  const input = $("input");
+  const text = input.value.trim();
+  if (!text || state.busy) return;
+  state.busy = true;
+  $("send").disabled = true;
+  input.value = "";
+  $("messages").insertAdjacentHTML("beforeend",
+    `<div class="turn"><div class="block user">${metaRow("user", new Date().toISOString())}` +
+    `<div class="body user">${pretty(text)}</div></div></div>`);
+  $("messages").scrollTop = $("messages").scrollHeight;
+  $("status").textContent = "运行中";
+  $("status").className = "status busy";
+  startPolling();
+  startPreviewPolling();
+  try {
+    const reply = await api("/turn", {
+      method: "POST",
+      body: JSON.stringify({ conversationId: state.conversationId ?? undefined, userInput: text }),
+    });
+    if (reply?.conversationId) state.conversationId = reply.conversationId;
+    if (reply?.stopReason?.kind === "error") {
+      $("messages").insertAdjacentHTML("beforeend",
+        `<div class="block assistant"><div class="body assistant">错误：${esc(reply.stopReason.faultCode || "unknown")}</div></div>`);
+    }
+  } catch (error) {
+    $("messages").insertAdjacentHTML("beforeend",
+      `<div class="block assistant"><div class="body assistant">请求失败：${esc(error)}</div></div>`);
+  } finally {
+    state.busy = false;
+    $("send").disabled = false;
+    if (polling) { clearInterval(polling); polling = null; }
+    await refresh();
+    await loadConversations();
+    await refreshPreview();
+  }
+}
+
+/* ---------- 右侧预览：真实 iframe 嵌入 agent 正在操作的页面 ---------- */
+let previewStream = null;
+
+/* 右栏只有一种呈现：把目标页直接嵌进 iframe，点击/输入/滚动都是浏览器原生行为。 */
+function frameEl() {
+  const stage = $("pstage");
+  let frame = stage.querySelector("iframe.pframe");
+  if (frame) return frame;
+  stage.innerHTML = '<iframe class="pframe" title="预览" referrerpolicy="no-referrer"></iframe>';
+  frame = stage.querySelector("iframe.pframe");
+  return frame;
+}
+
+function syncHint() {
+  $("phint").textContent = preview.embeddable ? "可直接点击 / 输入操作" : "该站点禁止被嵌入";
+}
+
+function renderPreviewStage() {
+  if (!preview.url) return;
+  const stage = $("pstage");
+  if (!preview.embeddable) {
+    stage.innerHTML = '<div class="placeholder">这个站点不允许被嵌入（X-Frame-Options / CSP），右栏无法直接显示。点右上角「在新标签打开」可以看。</div>';
+    return;
+  }
+  const frame = frameEl();
+  if (frame.getAttribute("src") !== preview.url) frame.setAttribute("src", preview.url);
+}
+
+function showPreviewPlaceholder(message) {
+  $("pdot").className = "dot";
+  $("paddr").innerHTML = `<b>预览</b> · ${esc(message)}`;
+  const stage = $("pstage");
+  stage.innerHTML = '<div class="placeholder">agent 操作页面时，这里会直接嵌入它正在看的页面</div>';
+  preview.embeddable = false;
+  syncHint();
+  $("pmeta").textContent = "尚未开始";
+}
+
+function setPreviewMeta(data) {
+  const changed = preview.tabId !== data.tabId || preview.url !== data.url || preview.title !== data.title;
+  preview.tabId = data.tabId;
+  preview.url = data.url;
+  preview.title = data.title;
+  preview.at = data.at;
+  const embedChanged = typeof data.embeddable === "boolean" && data.embeddable !== preview.embeddable;
+  if (typeof data.embeddable === "boolean") preview.embeddable = data.embeddable;
+  if (!changed) {
+    if (embedChanged) { syncHint(); renderPreviewStage(); }
+    return;
+  }
+  $("pdot").className = "dot live";
+  $("paddr").innerHTML = `<b>${esc(data.title || "未命名页面")}</b> · ${esc(data.url || "")}`;
+  syncHint();
+  renderPreviewStage();
+}
+
+function applyPreviewEvent(event) {
+  if (!event || event.kind === "hello") return;
+  if (event.kind === "empty") { showPreviewPlaceholder(event.message || "agent 还没有打开页面"); return; }
+  if (event.kind === "error") {
+    $("pdot").className = "dot";
+    $("pmeta").textContent = `预览中断：${event.error || "未知错误"}（等待重连）`;
+    return;
+  }
+  if (event.kind === "target" || event.kind === "frame") {
+    setPreviewMeta(event);
+    const time = new Date(event.at || Date.now()).toLocaleTimeString();
+    $("pmeta").textContent = `标签 ${event.tabId} · ${time} · 嵌入预览`;
+  }
+}
+
+function connectPreview() {
+  if (previewStream) return;
+  const source = new EventSource("/api/preview/stream");
+  previewStream = source;
+  source.onmessage = (message) => {
+    let event = null;
+    try { event = JSON.parse(message.data); } catch { return; }
+    applyPreviewEvent(event);
+  };
+  source.onerror = () => {
+    $("pdot").className = "dot";
+    $("pmeta").textContent = "预览流断开，正在自动重连…";
+  };
+}
+
+function disconnectPreview() {
+  if (!previewStream) return;
+  previewStream.close();
+  previewStream = null;
+}
+
+function reconnectPreview() {
+  disconnectPreview();
+  connectPreview();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) disconnectPreview();
+  else connectPreview();
+});
+
+/* 旧的调用点保留同名包装：send() 与初始化只负责确保推流连接在。 */
+function refreshPreview() {
+  connectPreview();
+  // 「刷新」= 重新加载 iframe（推流已移除，SSE 只用来跟目标页）。
+  const frame = $("pstage").querySelector("iframe.pframe");
+  if (frame && preview.url) frame.setAttribute("src", preview.url);
+}
+function startPreviewPolling() { connectPreview(); }
+
+$("composer").addEventListener("submit", send);
+$("input").addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); send(); }
+});
+$("messages").addEventListener("click", (event) => {
+  const head = event.target.closest(".act-head");
+  if (head) toggleActivity(head);
+});
+$("convToggle").addEventListener("click", () => $("convPanel").classList.toggle("show"));
+$("newConv").addEventListener("click", newConversation);
+$("cnew").addEventListener("click", (event) => { event.preventDefault(); newConversation(); });
+$("prefresh").addEventListener("click", () => refreshPreview());
+$("popen").addEventListener("click", () => { if (preview.url) window.open(preview.url, "_blank"); });
+
+(async () => {
+  await refresh();
+  await loadConversations();
+  setInterval(loadConversations, 15000);
+  startPreviewPolling();
+  try {
+    const health = await api("/health");
+    const label = health?.model || health?.providerLabel || health?.provider;
+    if (typeof label === "string" && label) $("modelChip").textContent = label;
+  } catch { /* 拿不到模型名就保留默认芯片 */ }
+})();
+</script>
+</body>
+</html>

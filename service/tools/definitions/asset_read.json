@@ -1,0 +1,55 @@
+{
+  "type": "function",
+  "function": {
+    "name": "asset_read",
+    "description": "读取归档资产。文本使用统一块索引：不传 blockId/keyword 返回根目录；blockId 返回 kind=directory 的子块目录或 kind=content 的完整原文；keyword 搜索命中块，offset 用于搜索翻页。图片无矩形时返回元数据，带 x/y/width/height 时调用 image_crop。文本取回直接内联，不再外置。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string",
+          "description": "ast_ 编号，来自 asset_list"
+        },
+        "keyword": {
+          "type": "string",
+          "description": "文本检索关键字"
+        },
+        "x": {
+          "type": "number",
+          "description": "image 裁切矩形 x"
+        },
+        "y": {
+          "type": "number",
+          "description": "image 裁切矩形 y"
+        },
+        "width": {
+          "type": "number",
+          "description": "image 裁切宽"
+        },
+        "height": {
+          "type": "number",
+          "description": "image 裁切高"
+        },
+        "blockId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "目录提供的块 ID，与 keyword 二选一"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "搜索结果偏移，仅与 keyword 同用"
+        }
+      },
+      "required": [
+        "reason",
+        "assetId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

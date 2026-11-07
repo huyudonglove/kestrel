@@ -1,0 +1,23 @@
+{
+  "name": "kestrel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run service/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tavily/core": "^0.7.11",
+    "ajv": "^8.20.0",
+    "marked": "^18.0.13",
+    "openai": "^7.10.0",
+    "playwright-core": "^1.49.0",
+    "postcss": "^8.5.32",
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.1"
+  }
+}

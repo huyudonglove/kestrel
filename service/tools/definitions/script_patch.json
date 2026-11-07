@@ -1,0 +1,32 @@
+{
+  "type": "function",
+  "function": {
+    "name": "script_patch",
+    "description": "用 git unified diff 在服务数据目录 scripts/ 新增、修改或删除一个脚本文件。filename 指定单层文件名，patch 只能修改该文件；返回修改状态，不执行脚本。仅对后续文件头和修改块可佐证的 diff --git 分界行移除误加的前导空格或制表符；若发生归一化，返回 normalization 类型及原补丁中的行号，不放宽 Git 检查。脚本由解释器执行，补丁使用文件模式 100644，不包含 chmod/rename。必须等本次补丁成功后的下一次模型调用，再用 execute_javascript、local_run 或 local_process_start 执行；同批补丁与执行会被拒绝。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.(sh|py|js|mjs|cjs)$",
+          "description": "服务数据目录 scripts/ 下的单层脚本文件名，不含目录"
+        },
+        "patch": {
+          "type": "string",
+          "minLength": 1,
+          "description": "单文件 git unified diff，路径必须对应 filename；新增或删除整个文件使用 /dev/null（无需上下文）。修改已有文件时请保留修改块前后未修改的原文行，以空格为前缀；不要只传 -旧行/+新行的零上下文局部修改块。使用 Git 默认检查，不启用 --unidiff-zero；--recount 仅按正文重算 @@ 行数，不放宽上下文检查。仍需合法文件头、块头、每行前缀及匹配的原文，补丁以换行结束"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename",
+        "patch",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

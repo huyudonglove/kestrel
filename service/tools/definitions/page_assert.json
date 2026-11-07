@@ -1,0 +1,89 @@
+{
+  "type": "function",
+  "function": {
+    "name": "page_assert",
+    "description": "断言页面条件（只读）。参数同 page_recheck，含 role±name±states。任一条件不满足则 ok=false、faultCode=assertion_failed，并列出失败项。用于操作成功验收；观察性检查用 page_recheck。 role/name 检查会与同传的 id、selector、states 取交集，必须匹配同一元素；不同控件请拆成独立调用。仅传 id 和 selector 时分别检查存在性；selector+states 检查所选节点状态。text、urlContains、titleContains 是页面级检查。\n返回：ok 与 checks[]（每项 name、ok）；条件不满足时 ok=false、faultCode=assertion_failed，并附 error。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号；页面级检查（text/urlContains/titleContains）需要它。"
+        },
+        "frameId": {
+          "type": "integer",
+          "description": "内嵌文档编号，从 frame_list 取得；不传则作用于主文档。"
+        },
+        "id": {
+          "type": "string",
+          "description": "page.* 返回的 e_/r_ 编号（元素或区域），原样传入。"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS 选择器；与 role/name 同传时限定其匹配节点，states 检查所选节点状态。仅与 id 同传时分别检查存在性。"
+        },
+        "text": {
+          "type": "string",
+          "description": "页面正文需包含的文字（页面级检查，不限定为 selector/id 匹配节点的文字）。"
+        },
+        "urlContains": {
+          "type": "string",
+          "description": "当前页面 URL 需包含的子串（不检查网络响应 URL）。"
+        },
+        "titleContains": {
+          "type": "string",
+          "description": "页面标题需包含的子串。"
+        },
+        "role": {
+          "type": "string",
+          "description": "可访问角色，例如 button / link / textbox / navigation；配合 name 使用。"
+        },
+        "name": {
+          "type": "string",
+          "description": "可访问名子串，与 role 搭配"
+        },
+        "states": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "checked": {
+              "type": "boolean"
+            },
+            "selected": {
+              "type": "boolean"
+            },
+            "expanded": {
+              "type": "boolean"
+            },
+            "invalid": {
+              "type": "boolean"
+            },
+            "attached": {
+              "type": "boolean"
+            },
+            "required": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "description": "要求目标元素具备的 A11y 状态，如 {enabled:true}、{checked:true}；多匹配时配合 matchIndex。"
+        },
+        "matchIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "多匹配时的命中序号（0 起），不传则不猜测"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

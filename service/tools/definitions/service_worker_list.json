@@ -1,0 +1,25 @@
+{
+  "type": "function",
+  "function": {
+    "name": "service_worker_list",
+    "description": "列出目标网页所属源可见的 Service Worker 注册信息，需要页面支持 Service Worker API。\n返回：ok、serviceWorkers（scope、active、installing、waiting 脚本地址）。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "execution": "serial"
+}

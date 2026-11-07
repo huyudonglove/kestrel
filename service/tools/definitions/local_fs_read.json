@@ -1,0 +1,76 @@
+{
+  "type": "function",
+  "function": {
+    "name": "local_fs_read",
+    "description": "按字节分页或按行范围读取 UTF-8 文本文件，一次最多 8 个目标。items 每项含 path（绝对路径）及可选字节分页 offset（默认 0）、limit（默认 65536，范围 4..1048576），或行范围 startLine（1 起，与 offset 互斥）、endLine。返回 results[]，字节分页含 content、size、nextOffset、truncated；行范围含 content、startLine、endLine、totalLines。逐项 ok，失败项带 faultCode/error。按当前问题读取相关范围；位置未知时用 local_fs_grep 定位，需结构导航时用 local_fs_outline。已有结果足够时直接推进，不要求每次先建立目录。单次返回超过 {{inlineChars}} 字符时，Runtime 保存返回原文并展示统一块目录和路径；沿本次 callId 用 evidence_search 取所需块，无需为了避免外置反复缩小范围重读。可选 maxChars 限制整批 content 字符数，超出时按行边界实际截断，budgetNote 指明受影响文件。它不等于外置：被截掉的内容不在本次返回快照里。只有尚需截掉的部分时，再读取对应文件范围；字节分页同样按需要用 nextOffset 继续，不必读完整个文件。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "一次最多 8 个读取目标",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "绝对路径"
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "default": 0,
+                "description": "按字节分页读取的起始偏移量（与 startLine 互斥）"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 4,
+                "maximum": 1048576,
+                "default": 65536,
+                "description": "按字节分页读取的最大字节数"
+              },
+              "startLine": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "按行切片读取的起始行（1 起；与 offset 互斥）"
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "按行切片读取的结束行（包含；缺省读至文件末尾）"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "maxChars": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 1000000,
+          "description": "可选：整批 content 的总字符预算。超出时按行边界实际截断，budgetNote 指明受影响项；截掉部分不在本次快照。省略时保留本次读取内容，超出内联门槛由 Runtime 外置为块目录，原文可回查。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "items",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel",
+  "mutex": [
+    [
+      "offset",
+      "startLine"
+    ]
+  ]
+}

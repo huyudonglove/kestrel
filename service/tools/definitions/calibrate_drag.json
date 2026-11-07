@@ -1,0 +1,96 @@
+{
+  "type": "function",
+  "function": {
+    "name": "calibrate_drag",
+    "description": "按最近一次 capture_page(mode=viewport) 的图像坐标拖动。\n参数：point1/point2=截图像素坐标，image_size=[宽,高]，可选 viewport；必填 tabId。可选 humanize 同 drag：缺省原子精确，全部拟人开关默认关。\n返回：ok、mapped_from、mapped_to。先截图把滑块和缺口点在图上，再调用本工具。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "point1": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          },
+          "description": "截图上的起点像素坐标"
+        },
+        "point2": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          },
+          "description": "截图上的终点像素坐标"
+        },
+        "x1": {
+          "type": "number",
+          "description": "起点 x 坐标（point1=[x,y] 的别名）。"
+        },
+        "y1": {
+          "type": "number",
+          "description": "起点 y 坐标（point1=[x,y] 的别名）。"
+        },
+        "x2": {
+          "type": "number",
+          "description": "终点 x 坐标（point2=[x,y] 的别名）。"
+        },
+        "y2": {
+          "type": "number",
+          "description": "终点 y 坐标（point2=[x,y] 的别名）。"
+        },
+        "image_size": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          },
+          "description": "最近一次 capture_page(mode=viewport) 返回的 image_size"
+        },
+        "viewport": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          },
+          "description": "最近一次 capture_page(mode=viewport) 返回的 viewport；缺省时执行器现读"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "humanize": {
+          "type": "object",
+          "description": "拟人化拖动参数；省略或全 false=原子精确落点。与 drag 一致。",
+          "properties": {
+            "overshoot": {
+              "type": "boolean",
+              "description": "过冲回拉，默认 false"
+            },
+            "noise": {
+              "type": "boolean",
+              "description": "路径噪声，默认 false"
+            },
+            "releaseJitter": {
+              "type": "boolean",
+              "description": "松手微抖，默认 false"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

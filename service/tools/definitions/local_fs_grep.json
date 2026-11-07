@@ -1,0 +1,79 @@
+{
+  "type": "function",
+  "function": {
+    "name": "local_fs_grep",
+    "description": "在目录内检索 UTF-8 文件内容：默认字面子串，regex=true 时 query 按正则匹配。不跟随符号链接，跳过 node_modules、.git，含 NUL 的二进制文件，并默认跳过密钥文件（.env*、*.key、*.pem、*.p12、*.pfx，记入 skipped 的 reason=secret file）；显式传单个文件路径时不受此跳过限制。query 长度 1 到 500。limit 默认 50 最大 200；maxFiles 默认 5000 最大 5000；maxFileBytes 默认 1048576；maxEntries 默认 10000 最大 100000；contextChars 默认 80 最大 200；contextLines 默认 0 最大 50（命中行上下 N 行，输出 beforeLines/afterLines）。返回 matches（path、line、column、before、hit、after、contextLines>0 时含 beforeLines/afterLines）、scannedFiles、scannedEntries、truncated、truncations、partial、skipped、errors。truncations 列出因 limit/maxFiles/maxEntries/error 而提前结束的原因；一旦非空则 partial=true，matches 只是已扫描部分，0 命中不代表全文无匹配。有命中时返回 skipped 明细；0 命中时不返回 skipped 明细，只回 skippedCount 与 note（note 说明是扫完全文无匹配还是提前结束），以免返回体被跳过列表撑大。截断或跳过时缩小目录或收紧 query。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "要检索的目录绝对路径；也可传单个文件路径，此时只检索该文件"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "字面子串；regex=true 时为正则"
+        },
+        "regex": {
+          "type": "boolean",
+          "default": false,
+          "description": "true 时 query 按正则匹配"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50,
+          "description": "最多返回的命中条数（默认 50，最大 200）"
+        },
+        "maxFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000,
+          "default": 5000,
+          "description": "最多扫描的文件数，默认 5000"
+        },
+        "maxFileBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576,
+          "default": 1048576,
+          "description": "单文件读取上限字节数，默认 1048576"
+        },
+        "maxEntries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000,
+          "default": 10000,
+          "description": "最多扫描的目录项数，默认 10000"
+        },
+        "contextChars": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200,
+          "default": 80,
+          "description": "命中片段前后保留的字符数，默认 80"
+        },
+        "contextLines": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50,
+          "default": 0,
+          "description": "命中行上下各取 N 行，输出 beforeLines/afterLines"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "query",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

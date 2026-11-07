@@ -1,0 +1,176 @@
+import { lstat, readFile, readdir } from "node:fs/promises";
+import { extname, join } from "node:path";
+
+/**
+ * 符号级代码检索：一次给出「定义在哪」与「被谁引用」。
+ *
+ * 解决的问题：只靠文件名检索（fs_search）与字面量检索（fs_grep）时，想改一个函数
+ * 往往要先猜它写在哪个文件，猜错就是一次 file_not_found 往返。这里按标识符本身
+ * 定位，一次把定义点与引用点都给出来。不引入 TypeScript 编译器依赖，纯词法判定。
+ */
+export const LOCAL_CODE_REFS_TOOL_NAMES = ["local_code_refs"] as const;
+
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", "coverage", ".next", ".cache"]);
+const CODE_EXT = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".jsx"]);
+const DEFAULTS = { limit: 80, maxFiles: 3000, maxEntries: 20000, maxFileBytes: 1048576, snippetChars: 160 } as const;
+
+/** 词法级定义模式：按出现顺序即特异性从高到低，命中即认定该行是这个符号的定义。 */
+const DEF_PATTERNS: { kind: string; re: RegExp }[] = [
+  { kind: "function", re: /(?:^|[\s;{}])export\s+default\s+(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/ },
+  { kind: "function", re: /(?:^|[\s;{}])export\s+(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/ },
+  { kind: "function", re: /(?:^|[\s;{}])(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/ },
+  { kind: "class", re: /(?:^|[\s;{}])export\s+(?:default\s+|abstract\s+)*class\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "class", re: /(?:^|[\s;{}])class\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "interface", re: /(?:^|[\s;{}])export\s+(?:declare\s+)?interface\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "interface", re: /(?:^|[\s;{}])interface\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "type", re: /(?:^|[\s;{}])export\s+(?:declare\s+)?type\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "type", re: /(?:^|[\s;{}])type\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "enum", re: /(?:^|[\s;{}])export\s+(?:declare\s+)?(?:const\s+)?enum\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "const", re: /(?:^|[\s;{}])export\s+(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/ },
+  { kind: "const", re: /(?:^|[\s;{}])(?:const|let|var)\s+([A-Za-z_$][\w$]*)/ },
+];
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function defKindOf(line: string, name: string): string | undefined {
+  for (const { kind, re } of DEF_PATTERNS) {
+    const match = re.exec(line);
+    if (match && match[1] === name) return kind;
+  }
+  return undefined;
+}
+
+const textOf = (input: Record<string, unknown>, key: string) => {
+  const raw = input[key];
+  return typeof raw === "string" && raw.length > 0 ? raw : "";
+};
+
+const intOf = (input: Record<string, unknown>, key: keyof typeof DEFAULTS) => {
+  const raw = input[key];
+  const value = typeof raw === "string" ? Number(raw) : raw;
+  return Number.isSafeInteger(value) && (value as number) > 0 ? (value as number) : DEFAULTS[key];
+};
+
+const snippet = (line: string, width: number) => {
+  const trimmed = line.trim();
+  return trimmed.length > width ? `${trimmed.slice(0, width)}…` : trimmed;
+};
+
+export async function runCodeRefs(input: Record<string, unknown>) {
+  const path = textOf(input, "path");
+  const symbol = textOf(input, "symbol");
+  if (!path) throw new Error("path is required");
+  if (!symbol) throw new Error("symbol is required");
+  const kind = textOf(input, "kind") || undefined;
+  const limit = intOf(input, "limit");
+  const maxFiles = intOf(input, "maxFiles");
+  const maxEntries = intOf(input, "maxEntries");
+  const maxFileBytes = intOf(input, "maxFileBytes");
+  const width = intOf(input, "snippetChars");
+
+  const rootStat = await lstat(path);
+  const singleFile = rootStat.isFile();
+  if (!singleFile && !rootStat.isDirectory()) throw new Error(`path 既不是目录也不是文件：${path}`);
+
+  const word = new RegExp(`\\b${escapeRegExp(symbol)}\\b`);
+  const definitions: Record<string, unknown>[] = [];
+  const references: Record<string, unknown>[] = [];
+  const filesWithRefs = new Set<string>();
+  const filesWithDefs = new Set<string>();
+  const errors: { path: string; error: string }[] = [];
+  const skipped: { path: string; reason: string }[] = [];
+  const truncations: string[] = [];
+  const pending: string[] = [path];
+  let scannedFiles = 0;
+  let scannedEntries = 0;
+  let truncated = false;
+
+  outer: while (pending.length) {
+    const current = pending.pop()!;
+    let entries;
+    try {
+      entries = singleFile ? null : await readdir(current, { withFileTypes: true });
+    } catch (error) {
+      if (current === path) throw error;
+      if (errors.length < 20) errors.push({ path: current, error: error instanceof Error ? error.message : String(error) });
+      truncated = true;
+      truncations.push("read_error");
+      continue;
+    }
+    const batch = entries ?? [{ name: path, isDirectory: () => false, isFile: () => true }];
+    for (const entry of batch) {
+      const full = entries ? join(current, entry.name) : current;
+      if (entries) {
+        scannedEntries++;
+        if (scannedEntries > maxEntries) {
+          truncated = true;
+          truncations.push("maxEntries");
+          break outer;
+        }
+        if (entry.isDirectory()) {
+          if (!SKIP_DIRS.has(entry.name)) pending.push(full);
+          continue;
+        }
+        if (!entry.isFile() || !CODE_EXT.has(extname(entry.name))) continue;
+      }
+      if (scannedFiles >= maxFiles) {
+        truncated = true;
+        truncations.push("maxFiles");
+        break outer;
+      }
+      let text: string;
+      try {
+        if ((await lstat(full)).size > maxFileBytes) {
+          skipped.push({ path: full, reason: "too_large" });
+          continue;
+        }
+        text = await readFile(full, "utf8");
+      } catch (error) {
+        if (skipped.length < 50) skipped.push({ path: full, reason: error instanceof Error ? error.message : String(error) });
+        continue;
+      }
+      if (text.includes("\x00")) {
+        skipped.push({ path: full, reason: "binary" });
+        continue;
+      }
+      scannedFiles++;
+      const lines = text.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        if (!word.test(line)) continue;
+        const defKind = defKindOf(line, symbol);
+        if (defKind && (!kind || kind === defKind)) {
+          filesWithDefs.add(full);
+          if (definitions.length < limit) definitions.push({ path: full, line: i + 1, kind: defKind, text: snippet(line, width) });
+        } else if (!defKind) {
+          filesWithRefs.add(full);
+          if (references.length < limit) references.push({ path: full, line: i + 1, text: snippet(line, width) });
+        }
+      }
+    }
+  }
+
+  const found = definitions.length + references.length;
+  return {
+    ok: found > 0,
+    symbol,
+    path,
+    ...(kind ? { kind } : {}),
+    definitions,
+    references,
+    counts: {
+      definitions: definitions.length,
+      references: references.length,
+      filesWithDefinitions: filesWithDefs.size,
+      filesWithReferences: filesWithRefs.size,
+    },
+    scannedFiles,
+    scannedEntries,
+    ...(truncated ? { truncated: true, truncations } : {}),
+    ...(skipped.length ? { skippedCount: skipped.length } : {}),
+    ...(errors.length ? { errors } : {}),
+    ...(found === 0
+      ? { note: "已扫完全文无匹配。可能是符号名写错、定义在非代码扩展名文件里，或目标是类型名（接口/type）而本工具只按词法判定 —— 可先换更短的符号名或收紧 path 重试。" }
+      : {}),
+  };
+}

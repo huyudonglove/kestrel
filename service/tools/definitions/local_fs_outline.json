@@ -1,0 +1,32 @@
+{
+  "type": "function",
+  "function": {
+    "name": "local_fs_outline",
+    "description": "为文件建立统一块目录，代码按 TypeScript AST 结构、JSON 按字段/数组、文本按段落和行递归划分。返回根块目录与文件元信息，来源位置使用真实文件行号。使用本次 callId 和目录中的 blockId 调用 evidence_search：目录节点继续列子块，内容节点返回当次文件快照的完整原文。maxFileBytes 默认 1048576；块大小由统一内联预算决定。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "绝对路径"
+        },
+        "maxFileBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576,
+          "default": 1048576,
+          "description": "文件大小上限，超出直接报错"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "parallel"
+}

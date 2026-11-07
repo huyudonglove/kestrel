@@ -1,0 +1,25 @@
+{
+  "type": "function",
+  "function": {
+    "name": "reload",
+    "description": "刷新指定页。\n参数：必填 tabId（目标标签编号）。\n返回：ok、title（页面标题）、url（页面地址）、text（返回文本）。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "execution": "serial"
+}

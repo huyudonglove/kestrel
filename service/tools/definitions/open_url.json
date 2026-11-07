@@ -1,0 +1,30 @@
+{
+  "type": "function",
+  "function": {
+    "name": "open_url",
+    "description": "打开指定网址并读回标题正文。\n参数：url（网址），必填 tabId（目标标签编号）。\n返回：ok、title（页面标题）、url（页面地址）、text（返回文本）、tabId。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "要打开的网址（含 https://）"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        }
+      },
+      "required": [
+        "reason",
+        "url",
+        "tabId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}

@@ -1,0 +1,18 @@
+{
+  "residentSkillIds": [
+    "web-observation",
+    "code-engineering"
+  ],
+  "dynamicSkillIds": [
+    "reply-format",
+    "chrome-host-environment",
+    "host-browser-coordination",
+    "spa-state-sync",
+    "api-causality-flow",
+    "canvas-webgl-probing",
+    "network-state-troubleshooting",
+    "repo-browser-dual-audit",
+    "hypothesis-testing",
+    "graphical-slider-verification"
+  ]
+}

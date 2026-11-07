@@ -1,0 +1,25 @@
+{
+  "type": "function",
+  "function": {
+    "name": "duplicate_tab",
+    "description": "使用 Chrome 原生复制创建指定标签的副本，保留原生复制语义；浏览器会激活副本。\n参数：必填 tabId。\n返回：ok、tabId（副本编号）。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "integer",
+          "description": "目标标签编号（必填；从 tabs_current 等返回取得，不随前台切换）。"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "tabId"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "execution": "serial"
+}

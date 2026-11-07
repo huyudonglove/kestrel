@@ -1,0 +1,20 @@
+{
+  "type": "function",
+  "function": {
+    "name": "list_downloads",
+    "description": "列出下载项。\n返回：ok、downloads（下载记录）。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "execution": "parallel"
+}

@@ -1,0 +1,52 @@
+SUMMARY: 代码修改与验证：定位必要证据，实施局部改动，用差异、类型检查和测试反馈完成修正。
+# 代码工程
+
+用于阅读、修改和验证仓库代码。执行顺序、证据复用、中断续作和 Task 判断统一按 <execution>；这里补充代码任务的定位、修改和验证方法。
+
+## 按问题选择能力
+
+| 当前问题 | 可用能力与下一步 |
+| --- | --- |
+| 不知道实现在哪里 | 用 local_fs_search 定位文件、local_fs_grep 检索符号或错误文本；大文件可用 local_fs_outline 看结构 |
+| 缺少某段原文 | 当前文件用 local_fs_read；已返回的内容沿 callId 用 evidence_search 取回 |
+| 已知修改位置和预期行为 | 单块修改用 local_replace_block；单文件或多文件 unified diff 可用 local_apply_patch |
+| 不确定改动是否越界 | 查看 git diff，对照用户要求和修改前已有差异 |
+| 不确定类型、调用契约是否成立 | 运行项目的类型检查或相关集成测试 |
+| 不确定实际行为 | 运行定向测试、最小复现或相关页面操作，比较预期和结果 |
+
+缺少工具时按 <environment> 加载，取得 schema 后调用。专项方法按实际问题选用：疑难因果用 hypothesis-testing，网络状态用 network-state-troubleshooting，源码与页面不一致用 repo-browser-dual-audit；已有方法足够时直接推进。
+
+## 代码修改与验证方法
+
+- 定位围绕具体逻辑：要改哪个条件、谁消费返回值、异步调用在哪里等待；执行与停止条件统一按 <execution>，不另走一套核对流程。
+- 局部修改用局部补丁。local_replace_block 默认要求唯一匹配；local_apply_patch 先检查完整补丁再应用。匹配或检查失败时，根据错误和实际上下文修正，不猜测原文。
+- 方向错误时只撤回自己引入的具体改动；不自行 stash 用户工作，也不用整文件恢复命令抹掉混合改动。
+- 复用能覆盖目标行为的测试或复现；仅为实际故障或必要行为补回归，避免锁文案或重复实现。失败时区分实现、测试夹具和环境问题。
+- 测试命令使用仓库现有入口。提供结构化汇总时先定位失败，再读取相关输出；控制会影响结果的初始状态，使失败能归因到待验证行为。
+
+## 本仓库的验证入口
+
+改动后按影响范围运行下列命令，报结论时给出实际输出：
+
+| 命令 | 用途 |
+| --- | --- |
+| `bun run check:wiring` | 工具定义与接线一致：声明的工具都有 schema、没有孤儿 schema |
+| `bun run typecheck` | 全仓类型检查（tsc --noEmit） |
+| `bun run lint` | 毫秒级静态检查：语法错误，以及 no-debugger / no-var / no-empty-catch |
+| `bun test` | 全量测试；`bun run test:sub`、`bun run test:extension` 只跑对应目录 |
+| `bun run test:summary` | 测试结果的结构化汇总 |
+| `bun run check` | 以上各项加扩展构建，提交前的合并门禁 |
+
+有意的空 catch 要在同一行写明原因（例如 `} catch { /* 进程可能已自行退出 */ }`）；夹具文件可在首行用 `// lint-disable-file 规则名` 豁免，但不要为了让诊断闭嘴而删掉夹具本身。
+
+## 三条纪律
+
+- 退出码不等于副作用：命令类调用要核对实际结果（进程是否存在、端口归属、文件或页面是否变化），别只看 exit code。
+- 外置结果不是失败：原文已保存，沿来源取需要的块即可，别反复重读同一份。
+- 验证走真实入口：从实际调用链（例如 handleTurn）验证；直调内部函数会漏掉调度层的接线问题。
+
+## 本仓库的工具与脚本
+
+- 查符号：`local_code_refs` 一次给出定义点与引用点，适合「这个函数定义在哪、被谁调用」；`local_repo_map` 按目录给出职责与入口文件，替代猜路径翻文件；`local_fs_outline` 先用 AST/字段结构看大文件，再决定读哪一段。
+- 落改动：单块用 `local_replace_block`；单文件或多文件可先备好 unified diff，用 `local_apply_patch` 一次应用（先 `git apply --recount --check`，不通过则不修改）。
+- 仓库脚本：`bun run repo:map` 打印目录职责与入口速览；`bun run git:guard` 看工作区干净度与改动统计，`checkpoint <标签>` 在动手前打检查点，`rollback <检查点 JSON>` 出错后回滚。回滚默认不清理未跟踪文件，确需清理时显式加 `--clean`。

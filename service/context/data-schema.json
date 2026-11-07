@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "User 模块数据契约",
+  "description": "User XML模块正文的逻辑值。conversation按loop组织，contextUsage位于整条User末尾。所有模块说明仅在System。",
+  "type": "object",
+  "properties": {
+    "skill": {
+      "type": "string"
+    },
+    "projectMemory": {
+      "type": "string"
+    },
+    "tools": {
+      "type": "string"
+    },
+    "conversation": {
+      "type": "string"
+    },
+    "contextUsage": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "skill",
+    "projectMemory",
+    "tools",
+    "conversation",
+    "contextUsage"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "function": {
+    "name": "finishTurn",
+    "description": "结束本轮对话。已能回答用户或需要说明无法继续时，先根据已返回的结果确认完成情况再调用。\n参数：必填 text：向用户展示的完整最终回复；同一正文也进入后续上下文与压缩链路。\n返回：text 并结束本轮；回复不依赖 content。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "向用户展示的最终回复正文，说明已确认的结果或具体阻碍。同时作为后续模型上下文与压缩使用的收口正文。"
+        },
+        "reason": {
+          "type": "string",
+          "description": "本次调用的行动说明，一两句话说明要做什么、为什么；最终回复只读取 text。"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "execution": "serial"
+}
