@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kestrel 演示录屏</title>
+<style>
+  :root { --bg:#f9f8f6; --fg:#1e1e24; --muted:#6b6b74; --line:#d9d5ce; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.6 -apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif; }
+  main { max-width:1180px; margin:0 auto; padding:32px 20px 56px; }
+  h1 { font-size:22px; margin:0 0 6px; letter-spacing:-0.01em; }
+  .meta { margin:0 0 20px; color:var(--muted); font-size:14px; }
+  video { width:100%; height:auto; display:block; background:#111;
+          border:1px solid var(--line); border-radius:10px; }
+  .links { margin:18px 0 0; font-size:14px; color:var(--muted); }
+  .links a { color:#3950e6; text-decoration:none; }
+  .links a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kestrel 演示录屏</h1>
+  <p class="meta">3 倍速成片，2 分 01 秒。原始录制 37 分 51 秒：静止画面加速，操作画面保留细节。</p>
+  <video id="demo" controls playsinline preload="metadata" poster="demo-poster.jpg">
+    <source src="demo-small.mp4" type="video/mp4">
+  </video>
+  <p class="links">
+    当前为 1374×920 / 4.7MB 版本 · <a href="demo-3x.mp4">高清版 2748×1840 / 19MB</a> ·
+    <a href="https://github.com/huyudonglove/kestrel">源码仓库</a>
+  </p>
+</main>
+</body>
+</html>
