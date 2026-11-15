@@ -2,6 +2,7 @@ import { chromium, type BrowserContext, type Page } from "playwright-core";
 import { existsSync, readFileSync, readlinkSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { BrowserHost, BrowserResult, CurrentTabs, PreviewEvent, PreviewWatchOptions } from "../types.ts";
+import { runExtraBrowserTool } from "./extra-tools.ts";
 
 type Json = Record<string, unknown>;
 
@@ -92,12 +93,19 @@ class ChromeRuntime {
   context(): Promise<BrowserContext> {
     if (!this.contextPromise) {
       this.clearStaleLocks();
+      // 本机默认沿用「已安装的 Chrome + 有头窗口」；容器里没有桌面环境，改用
+      // KESTREL_HEADLESS=1 + KESTREL_CHROME_PATH 指向镜像内自带的 Chromium。
+      const chromePath = Bun.env.KESTREL_CHROME_PATH?.trim() || "";
+      const chromeChannel = Bun.env.KESTREL_CHROME_CHANNEL?.trim() || (chromePath ? "" : "chrome");
+      const headless = /^(1|true|yes|on)$/i.test((Bun.env.KESTREL_HEADLESS ?? "").trim());
+      const extraArgs = (Bun.env.KESTREL_CHROME_ARGS ?? "").split(/\s+/).filter(Boolean);
       const attempt = chromium
         .launchPersistentContext(this.userDataDir, {
-          channel: "chrome",
-          headless: false,
-          viewport: null,
-          args: ["--no-first-run", "--no-default-browser-check", "--disable-blink-features=AutomationControlled"],
+          ...(chromePath ? { executablePath: chromePath } : {}),
+          ...(chromeChannel ? { channel: chromeChannel } : {}),
+          headless,
+          viewport: headless ? { width: 1440, height: 900 } : null,
+          args: ["--no-first-run", "--no-default-browser-check", "--disable-blink-features=AutomationControlled", ...extraArgs],
         })
         .then((context) => {
           const watch = (page: Page) => {
@@ -572,17 +580,39 @@ export function createPlaywrightHost(dataDir: string): BrowserHost {
         if (!page) return missing();
         const mode = textArg(args.mode, "viewport");
         let clip: { x: number; y: number; width: number; height: number } | undefined;
-        if (mode === "element" && textArg(args.ref)) {
-          const rect = await elementRect(page, textArg(args.ref));
-          if (!rect) return fail("not_found", `页面上没有元素 ${textArg(args.ref)}`);
-          clip = { x: rect.x, y: rect.y, width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+        if (mode === "element") {
+          // definitions 里 element 模式同时接受 ref 与 selector；只认 ref 会让 selector 调用截出整页。
+          const ref = textArg(args.ref);
+          const selector = textArg(args.selector);
+          if (ref) {
+            const rect = await elementRect(page, ref);
+            if (!rect) return fail("not_found", `页面上没有元素 ${ref}`, { ref });
+            clip = { x: rect.x, y: rect.y, width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+          } else if (selector) {
+            const box = await page.locator(selector).first().boundingBox().catch(() => null);
+            if (!box) return fail("not_found", `页面上没有匹配 ${selector} 的元素`, { selector });
+            clip = { x: box.x, y: box.y, width: Math.max(1, box.width), height: Math.max(1, box.height) };
+          } else {
+            return fail("invalid_arguments", "element 模式需要 ref 或 selector");
+          }
+        } else if (mode === "rect") {
+          const x = numArg(args.x), y = numArg(args.y), width = numArg(args.width), height = numArg(args.height);
+          if (x === undefined || y === undefined || width === undefined || height === undefined || width <= 0 || height <= 0) {
+            return fail("invalid_arguments", "rect 模式需要 x、y、width、height（width/height > 0）");
+          }
+          clip = { x, y, width, height };
         }
+        // 默认输出 jpeg：1440x900 的整页 png 约 330KB，超过看图门禁 256KB，agent 只能拿到路径看不到图。
+        const wantPng = textArg(args.format) === "png";
+        const format = wantPng ? "png" : "jpeg";
         const buffer = await page.screenshot({
-          type: "png",
+          type: format,
+          ...(format === "jpeg" ? { quality: 78 } : {}),
           fullPage: mode === "full_page",
           ...(clip ? { clip } : {}),
         });
-        return ok({ mode, dataUrl: `data:image/png;base64,${Buffer.from(buffer).toString("base64")}` });
+        const dataUrl = `data:image/${format};base64,${Buffer.from(buffer).toString("base64")}`;
+        return ok({ mode, format, bytes: buffer.length, ...(clip ? { width: clip.width, height: clip.height } : {}), dataUrl });
       }
       if (name === "page_eval_expr") {
         const page = await resolve(args);
@@ -623,8 +653,31 @@ export function createPlaywrightHost(dataDir: string): BrowserHost {
       if (name === "hover" || name === "double_click" || name === "long_press" || name === "context_menu") {
         const page = await resolve(args);
         if (!page) return missing();
-        const rect = await elementRect(page, textArg(args.id));
-        if (!rect) return fail("not_found", `页面上没有元素 ${textArg(args.id)}`);
+        const id = textArg(args.id) || textArg(args.ref);
+        const wantedText = textArg(args.text);
+        let rect: { x: number; y: number; width: number; height: number } | null = null;
+        const byId = id ? await elementRect(page, id) : null;
+        if (byId) rect = { x: byId.x, y: byId.y, width: byId.width, height: byId.height };
+        if (!rect && wantedText) {
+          // definitions 里这几个工具同时接受 ref 与 text；只按 id 找会漏掉没有 e_NN 的普通元素。
+          rect = await page.evaluate((wanted: string) => {
+            const visible = (el: Element) => {
+              const box = el.getBoundingClientRect();
+              const style = getComputedStyle(el);
+              return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+            };
+            const ownText = (el: Element) => (el.textContent ?? "").replace(/\s+/g, " ").trim();
+            const nodes = Array.from(document.body?.querySelectorAll("*") ?? []);
+            const hits = nodes.filter((el) => visible(el) && ownText(el).includes(wanted));
+            const inner = hits.find((el) => !Array.from(el.children).some((child) => ownText(child).includes(wanted)));
+            const target = inner ?? hits[hits.length - 1];
+            if (!target) return null;
+            target.scrollIntoView({ block: "center", inline: "center" });
+            const box = target.getBoundingClientRect();
+            return { x: box.x, y: box.y, width: box.width, height: box.height };
+          }, wantedText);
+        }
+        if (!rect) return fail("not_found", `页面上没有元素 ${id || wantedText}`);
         const x = rect.x + rect.width / 2;
         const y = rect.y + rect.height / 2;
         if (name === "hover") await page.mouse.move(x, y);
@@ -636,7 +689,7 @@ export function createPlaywrightHost(dataDir: string): BrowserHost {
           await new Promise((resolve) => setTimeout(resolve, 700));
           await page.mouse.up();
         }
-        return ok({ id: textArg(args.id), done: true });
+        return ok({ id: id || undefined, text: wantedText || undefined, at: { x, y } });
       }
       if (name === "scroll" || name === "scroll_to") {
         const page = await resolve(args);
@@ -710,9 +763,19 @@ export function createPlaywrightHost(dataDir: string): BrowserHost {
         const cookies = await context.cookies(textArg(args.url) || undefined);
         return ok({ cookies: cookies.slice(0, 100), count: cookies.length });
       }
-      if (name === "see_zoom" || name === "set_zoom" || name === "emulate_device") {
-        return fail("tool_not_implemented", `${name} 在 Kestrel 的 Playwright 执行端尚未实现`);
-      }
+      // 分派链没覆盖到的工具，交给补充模块；它返回 null 表示确实没有实现。
+      const extra = await runExtraBrowserTool(name, args, {
+        dataDir,
+        runtime,
+        resolve,
+        scanPage,
+        clickElement,
+        typeInto,
+        selectOption,
+        tabIdOf,
+        rawIdOf,
+      });
+      if (extra) return extra;
       return fail("tool_not_implemented", `${name} 在 Kestrel 的 Playwright 执行端尚未实现`, { name });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

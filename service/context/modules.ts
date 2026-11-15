@@ -121,7 +121,7 @@ function loadXmlModule(dir: string, entry: ModuleRegistryEntry): ContextModule {
   // 拼写检查：填完还剩未知占位就是写错了（currentDate/dataDir/cwd/os/data 由后级填充）。
   for (const text of [filled.purpose, filled.template]) {
     const stray = text.match(/\{\{(\w+)\}\}/);
-    if (stray && !["currentDate", "dataDir", "cwd", "os", "data"].includes(stray[1]!)) {
+    if (stray && !["currentDate", "dataDir", "cwd", "os", "data", "publicUrl"].includes(stray[1]!)) {
       throw new Error(`unresolved placeholder in module ${entry.id}`);
     }
   }
@@ -194,7 +194,7 @@ export function hostOsLabel(platform = process.platform, arch = process.arch): s
   return `${name} (${platform}/${arch})`;
 }
 
-export type ContextEnv = { cwd?: string; os?: string; dataDir?: string };
+export type ContextEnv = { cwd?: string; os?: string; dataDir?: string; publicUrl?: string };
 
 export function systemTextFromModules(
   modules: ContextModules,
@@ -205,6 +205,7 @@ export function systemTextFromModules(
 ): string {
   const cwd = env.cwd ?? process.cwd();
   const dataDir = env.dataDir ?? defaultDataDirLabel();
+  const publicUrl = env.publicUrl ?? defaultPublicUrl();
   const os = env.os ?? hostOsLabel();
   const parts: string[] = [];
   for (const tag of modules.systemOrder) {
@@ -213,21 +214,35 @@ export function systemTextFromModules(
       : tag === "#runtimeProtocol" ? identityRulesText()
       : tag === "#systemSkill" ? skillGuide
       : "";
+    // 这些占位对所有模块生效：execution 的产物收尾也要用对外入口地址给出可访问链接。
     let purpose = module.purpose;
-    if (tag === "#overview") {
-      purpose = purpose
-        .replaceAll("{{currentDate}}", currentDate)
-        .replaceAll("{{dataDir}}", dataDir)
-        .replaceAll("{{cwd}}", cwd)
-        .replaceAll("{{os}}", os);
+    let template = module.template;
+    const replacements: Array<[string, string]> = [
+      ["currentDate", currentDate],
+      ["dataDir", dataDir],
+      ["cwd", cwd],
+      ["os", os],
+      ["publicUrl", publicUrl],
+    ];
+    for (const [token, value] of replacements) {
+      purpose = purpose.replaceAll(`{{${token}}}`, value);
+      template = template.replaceAll(`{{${token}}}`, value);
     }
-    const data = module.template.includes("{{data}}")
-      ? module.template.replaceAll("{{data}}", extra)
-      : [module.template, extra].filter(Boolean).join("\n\n");
+    const data = template.includes("{{data}}")
+      ? template.replaceAll("{{data}}", extra)
+      : [template, extra].filter(Boolean).join("\n\n");
     parts.push(renderXmlModule({ ...module, purpose }, data || undefined));
   }
   parts.push(renderInventory("User", modules.userOrder, modules.userSlots));
   return parts.join("\n\n");
+}
+
+/** 对外可访问的入口地址：公网/容器部署时用 KESTREL_PUBLIC_URL，未配置时回退本机回环地址。 */
+function defaultPublicUrl(): string {
+  const configured = process.env.KESTREL_PUBLIC_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  const port = process.env.KESTREL_PORT?.trim() || "18790";
+  return `http://127.0.0.1:${port}`;
 }
 
 /** Model-facing data root: same default as runtime store, overridable via KESTREL_DATA. */

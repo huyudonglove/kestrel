@@ -13,6 +13,8 @@ export function executorVersion(repoRoot: string): string {
   const definitions = join(repoRoot, "service/tools/definitions");
   if (existsSync(definitions)) {
     for (const name of readdirSync(definitions).sort()) {
+      // 跳过 macOS AppleDouble 影子文件（"._name.json"）：它们随传输方式出现/消失，会污染执行端指纹。
+      if (name.startsWith("._")) continue;
       if (name.endsWith(".json")) files.push(`service/tools/definitions/${name}`);
     }
   }

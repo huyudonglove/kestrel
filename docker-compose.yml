@@ -1,0 +1,33 @@
+services:
+  kestrel:
+    build:
+      context: .
+      args:
+        # 在国内服务器上构建时传 APT_MIRROR=mirrors.tencentyun.com，改用国内 Debian 源
+        APT_MIRROR: ${APT_MIRROR:-deb.debian.org}
+    image: kestrel:local
+    restart: unless-stopped
+    ports:
+      - "18790:18790"
+    # provider key 等运行期配置沿用 service/.env，不写进镜像
+    env_file:
+      - service/.env
+    environment:
+      KESTREL_HOST: 0.0.0.0
+      KESTREL_DATA: /data
+      # 容器里没有桌面环境：headless + 镜像自带 Chromium
+      KESTREL_HEADLESS: "1"
+      KESTREL_CHROME_PATH: /usr/bin/chromium
+      KESTREL_CHROME_ARGS: "--no-sandbox --disable-dev-shm-usage"
+      # 入口是服务器 IP 或域名，事先枚举不出来，这里显式全放行 Host；
+      # 真正的身份边界是下面的访问口令。
+      KESTREL_ALLOWED_HOSTS: ${KESTREL_ALLOWED_HOSTS:-*}
+      # 只要实例可能被别人访问，口令就不是可选项：容器里有任意 shell 与任意路径读写
+      KESTREL_ACCESS_TOKEN: ${KESTREL_ACCESS_TOKEN:?请先设置访问口令：export KESTREL_ACCESS_TOKEN=$(openssl rand -hex 16)}
+    volumes:
+      - kestrel-data:/data
+    # Chromium 在容器里需要更大的 /dev/shm，否则多标签下会崩
+    shm_size: "1gb"
+
+volumes:
+  kestrel-data:

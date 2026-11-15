@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.gitignore
+docs
+.DS_Store
+._*
+**/._*
+preview-panel
+
+# 运行期配置（provider key、访问口令）一律走环境变量注入，不打进镜像
+service/.env
+service/.env.*

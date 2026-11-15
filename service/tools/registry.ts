@@ -149,7 +149,8 @@ export function loadToolRegistry(root: string): ToolRegistry {
   const execution: Record<string, ExecutionMode> = {};
   const mutex: Record<string, string[][]> = {};
   for (const file of readdirSync(join(root, "service", "tools", "definitions"))) {
-    if (!file.endsWith(".json") || ["index.json", "groups.json"].includes(file)) continue;
+    // macOS 打包/传输会生成 "._name.json" 形式的 AppleDouble 影子文件，内容是二进制元数据而非工具定义，必须跳过。
+    if (!file.endsWith(".json") || file.startsWith("._") || ["index.json", "groups.json"].includes(file)) continue;
     const source = fillNumbers(readFileSync(join(root, "service", "tools", "definitions", file), "utf8"));
     const raw = JSON.parse(source) as ChatTool;
     if (/\{\{\w+\}\}/.test(source)) throw new Error(`unresolved number placeholder in definitions/${file}`);

@@ -15,6 +15,8 @@ import { listItems, saveItem, deleteItem, LibraryError } from "./library/store.t
 import { readWidgetPage, saveWidgetHtml } from "./widgets/store.ts";
 import { readImageById } from "./images/store.ts";
 import { getStreamHub } from "./stream/pipe.ts";
+import { loadPreviewTarget, savePreviewTarget } from "./preview/store.ts";
+import { readArtifact } from "./artifacts/store.ts";
 
 const loadEnv = () => {
   const envPath = join(import.meta.dir, ".env");
@@ -95,6 +97,83 @@ const json = (body: unknown, status = 200) =>
     },
   });
 
+/**
+ * Host 头白名单：默认只接受本机回环地址。容器或公网部署时用 KESTREL_ALLOWED_HOSTS
+ * 追加实际访问用的 IP / 域名（逗号分隔），否则所有数据接口一律 403。
+ */
+const DEFAULT_ALLOWED_HOSTS = ["127.0.0.1", "localhost", "[::1]", "::1"];
+
+function allowedHosts(): string[] {
+  const extra = (Bun.env.KESTREL_ALLOWED_HOSTS ?? "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  return [...DEFAULT_ALLOWED_HOSTS, ...extra];
+}
+
+/** 默认行为不变：不配置 KESTREL_ALLOWED_HOSTS 时只放行本机回环。 */
+export function hostAllowed(hostname: string): boolean {
+  const list = allowedHosts();
+  // "*" 是显式全放行，只在容器/公网部署配合访问口令时使用：这种场景入口地址是
+  // 服务器 IP 或域名，事先枚举不出来，真正的身份边界是口令而不是 Host 头。
+  if (list.includes("*")) return true;
+  return list.includes(hostname.trim().toLowerCase());
+}
+
+/**
+ * 访问口令：设置 KESTREL_ACCESS_TOKEN 后，除静态页面与 /health 外都要带口令。
+ * 这个服务的工具集里有任意 shell 与任意路径读写，只要能被别人连上就等于交出整台机器，
+ * 所以一旦离开本机回环，口令是硬要求而不是可选项。
+ */
+export const ACCESS_COOKIE = "kestrel_access";
+
+function accessToken(): string {
+  return (Bun.env.KESTREL_ACCESS_TOKEN ?? "").trim();
+}
+
+function sameToken(actual: string, expected: string): boolean {
+  if (!actual || actual.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < actual.length; i += 1) diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
+}
+
+function tokenFromCookie(request: Request): string {
+  const raw = request.headers.get("cookie") ?? "";
+  for (const part of raw.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === ACCESS_COOKIE) {
+      try {
+        return decodeURIComponent(rest.join("="));
+      } catch {
+        return "";
+      }
+    }
+  }
+  return "";
+}
+
+/** 未配置口令时一律放行（本机默认行为）；配置后接受 Cookie、请求头或 ?token=。 */
+export function accessAllowed(request: Request, url: URL): boolean {
+  const expected = accessToken();
+  if (!expected) return true;
+  const header = request.headers.get("x-kestrel-access-token") ?? "";
+  const query = url.searchParams.get("token") ?? "";
+  return sameToken(header, expected) || sameToken(query, expected) || sameToken(tokenFromCookie(request), expected);
+}
+
+/** 口令模式下没带对口令时返回的解锁提示页，不暴露任何会话数据。 */
+function unlockResponse(): Response {
+  const html = `<!doctype html><meta charset="utf-8"><title>Kestrel · 需要访问口令</title>
+<body style="font:16px/1.7 -apple-system,system-ui,sans-serif;max-width:34rem;margin:14vh auto;padding:0 1.2rem;color:#222">
+<h1 style="font-size:1.2rem">这个 Kestrel 实例需要访问口令</h1>
+<p>在地址后面加上 <code>?token=你的口令</code> 再打开一次：</p>
+<pre style="background:#f4f4f5;padding:.8rem;border-radius:6px;overflow:auto">http://服务器地址:18790/?token=xxxxxxxx</pre>
+<p style="color:#666">口令就是服务端启动时的 <code>KESTREL_ACCESS_TOKEN</code>。验证通过后会写入 Cookie，之后直接访问即可。</p>
+</body>`;
+  return new Response(html, { status: 401, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+}
+
 export function createServer(options: ServeOptions = {}) {
   const repoRoot = options.repoRoot ?? join(import.meta.dir, "..");
   const dataDir = options.dataDir ?? defaultDataDir();
@@ -132,6 +211,24 @@ export function createServer(options: ServeOptions = {}) {
     fetch: async (request: Request) => {
       const url = new URL(request.url);
       const origin = request.headers.get("origin");
+      // 访问口令：配置 KESTREL_ACCESS_TOKEN 后，除 /health 外所有路由都要带口令。
+      // 浏览器第一次用 ?token= 打开时写入 Cookie，再把口令从地址栏去掉（302 到同路径）。
+      if (url.pathname !== "/health") {
+        if (!accessAllowed(request, url)) return unlockResponse();
+        if (request.method === "GET" && url.searchParams.has("token")) {
+          const rest = new URL(url);
+          const given = rest.searchParams.get("token") ?? "";
+          rest.searchParams.delete("token");
+          return new Response(null, {
+            status: 302,
+            headers: {
+              location: `${rest.pathname}${rest.search}`,
+              "set-cookie": `${ACCESS_COOKIE}=${encodeURIComponent(given)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`,
+              "cache-control": "no-store",
+            },
+          });
+        }
+      }
       // Widget pages are public on localhost so the frontend can load them in
       // iframes as normal web documents with their own JS context.
       if (request.method === "GET" && url.pathname.startsWith("/widget/")) {
@@ -140,11 +237,19 @@ export function createServer(options: ServeOptions = {}) {
         if (!page) return new Response("widget not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
         return new Response(page, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
       }
+      // agent 产物：数据目录 artifacts/ 下的页面与素材直接对外提供。与 widget 不同，这里是
+      // 真实文件路径（相对 artifacts/），所以页面里的 ./app.js 等相对资源、刷新、重建容器都不丢。
+      if (request.method === "GET" && url.pathname.startsWith("/artifact/")) {
+        const relative = decodeURIComponent(url.pathname.slice("/artifact/".length));
+        const file = readArtifact(dataDir, relative);
+        if (!file) return new Response("artifact not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
+        return new Response(file.body, { status: 200, headers: { "content-type": file.type, "cache-control": "no-store" } });
+      }
       // 前端页面本身是可公开浏览的静态入口（不含数据），任何来源打开都应返回；
       // 数据接口仍然走下面的同源/受信任来源校验。
       const isPageRequest = request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html");
       // Check before routing: omitting CORS headers alone cannot prevent writes.
-      if (!isPageRequest && (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
+      if (!isPageRequest && (!hostAllowed(url.hostname)
         || (origin !== null && !trustedOrigin(origin, url))
         || (origin === null && ["cross-site", "same-site"].includes(request.headers.get("sec-fetch-site") ?? "")))) {
         return json({ error: "forbidden origin" }, 403);
@@ -279,6 +384,34 @@ export function createServer(options: ServeOptions = {}) {
           at: Date.now(),
         });
       }
+      // 预览反向代理：把 agent 打开的私有地址（容器内 127.0.0.1:8123 等）搬到本服务同源下，
+      // 用户浏览器的 iframe 才能嵌进去。只代理 http/https，带超时，剥掉阻止嵌入的响应头。
+      // 用路径前缀（/preview/proxy/<编码源>/<页面内路径>）而不是 ?u= 查询参数：页面里的相对资源
+      // （./app.js、img/a.png）请求回来仍带同一个前缀，才能一起被代理；查询式只能代单个 URL。
+      if (request.method === "GET" && url.pathname.startsWith("/preview/proxy/")) {
+        const rest = url.pathname.slice("/preview/proxy/".length);
+        const cut = rest.indexOf("/");
+        const originRaw = decodeURIComponent(cut < 0 ? rest : rest.slice(0, cut));
+        const tail = (cut < 0 ? "" : rest.slice(cut)) + url.search;
+        const origin = previewTarget(originRaw);
+        if (!origin) return respond({ ok: false, error: "缺少或非法的预览源" }, 400);
+        const target = joinPreviewUrl(origin, tail);
+        try {
+          const upstream = await fetch(target, {
+            method: "GET",
+            redirect: "follow",
+            headers: { "user-agent": "Mozilla/5.0 (Kestrel preview proxy)" },
+            signal: AbortSignal.timeout(15000),
+          });
+          const headers = new Headers();
+          headers.set("content-type", upstream.headers.get("content-type") ?? "application/octet-stream");
+          headers.set("cache-control", "no-store");
+          // 目标页常带 X-Frame-Options / CSP frame-ancestors，代理后必须剥掉才能被同源 iframe 嵌入。
+          return new Response(upstream.body, { status: upstream.status, headers });
+        } catch (error) {
+          return respond({ ok: false, error: error instanceof Error ? error.message : String(error) }, 502);
+        }
+      }
       // 右栏预览的目标页订阅：执行端只跟踪 agent 正在操作的页面并发 target 事件，
       // 这里用 SSE 转给前端，前端把该页嵌进 iframe（真实页面，交互由浏览器原生处理）。
       if (request.method === "GET" && url.pathname === "/api/preview/stream") {
@@ -309,14 +442,37 @@ export function createServer(options: ServeOptions = {}) {
               }
             };
             console.log("[preview] sse open");
+            // 目标页可能是外部站点，也可能是容器内私有地址（127.0.0.1:8123 之类）；后者必须
+            // 经本服务 /preview/proxy 反代，否则用户浏览器里就是白框。
+            const sendTarget = (target: { url: string; title: string; tabId: number; at: number; restored?: boolean }) => {
+              // 前端只认 kind=target/frame 的事件；补发上一次目标时原对象没有 kind，
+              // 必须在这里补上，否则刷新后右栏会一直停在「尚未开始」。
+              const payload = { ...target, kind: "target" as const };
+              const proxied = previewProxyUrl(target.url);
+              if (proxied) {
+                send({ ...payload, originUrl: target.url, url: proxied, embeddable: true });
+                return;
+              }
+              void probeEmbeddable(target.url)
+                .then((embeddable) => send({ ...payload, embeddable }))
+                .catch(() => send({ ...payload, embeddable: false }));
+            };
             send({ kind: "hello", at: Date.now() });
+            // 刷新网页会新建一条 SSE 连接：把上一次下发过的目标补回去，右栏不会退回「尚未开始」。
+            const lastTarget = loadPreviewTarget(dataDir);
+            if (lastTarget) sendTarget({ ...lastTarget, restored: true });
             // target 事件到达时顺手探测目标页能否被 iframe 嵌入（结果缓存 5 分钟），
             // 再随事件下发；前端据此决定是嵌入 iframe 还是显示不可嵌入提示。
             stop = watch((event) => {
               if (event.kind !== "target") { send(event); return; }
-              void probeEmbeddable(event.url)
-                .then((embeddable) => send({ ...event, embeddable }))
-                .catch(() => send({ ...event, embeddable: false }));
+              // 目标落到数据目录（容器里是挂载卷）：网页刷新、服务重启后还能补发同一个页面。
+              savePreviewTarget(dataDir, {
+                url: event.url,
+                title: event.title ?? "",
+                tabId: event.tabId ?? -1,
+                at: event.at ?? Date.now(),
+              });
+              sendTarget(event);
             }, { exclude: isSelfPage });
             ping = setInterval(() => {
               if (closed) return;
@@ -454,9 +610,47 @@ export function createServer(options: ServeOptions = {}) {
   };
 }
 
+/** 预览目标是否落在用户浏览器够不到的私有地址（容器内 127.0.0.1 之类）；是则返回同源代理地址。 */
+function previewProxyUrl(target: string): string | null {
+  if (!target) return null;
+  try {
+    const parsed = new URL(target);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    const host = parsed.hostname;
+    const privateHost = ["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"].includes(host)
+      || /^10\./.test(host)
+      || /^192\.168\./.test(host)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+    if (!privateHost) return null;
+    return `/preview/proxy/${encodeURIComponent(parsed.origin)}${parsed.pathname || "/"}${parsed.search}`;
+  } catch {
+    return null;
+  }
+}
+
+/** 代理入口只接受 http/https 绝对地址。 */
+function previewTarget(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** 把代理前缀里的尾巴（页面内路径 + 查询串）拼回源站地址。 */
+function joinPreviewUrl(origin: string, tail: string): string {
+  const base = origin.replace(/\/+$/, "");
+  if (!tail) return `${base}/`;
+  return `${base}${tail.startsWith("/") ? tail : `/${tail}`}`;
+}
+
 const isMain = import.meta.main;
 if (isMain) {
-  const hostname = "127.0.0.1";
+  // 默认只监听回环地址；容器内对外提供服务时用 KESTREL_HOST=0.0.0.0。
+  const hostname = Bun.env.KESTREL_HOST?.trim() || "127.0.0.1";
   // 默认 18790；可用 KESTREL_PORT 覆盖，避免与本机其他服务撞端口。
   const port = Number(Bun.env.KESTREL_PORT ?? 18790);
   const server = createServer();
@@ -475,7 +669,7 @@ if (isMain) {
       const url = new URL(request.url);
       if (request.method === "GET" && url.pathname === "/stream") {
         const origin = request.headers.get("origin");
-        const hostOk = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
+        const hostOk = hostAllowed(url.hostname);
         const originOk = origin === null
           || origin === `http://${url.host}`
           || /^chrome-extension:\/\/[a-p]{32}$/.test(origin)
