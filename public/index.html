@@ -222,7 +222,7 @@
   </section>
 </div>
 <script>
-const state = { conversationId: null, busy: false, conversations: [], expanded: new Set() };
+const state = { conversationId: null, busy: false, conversations: [], expanded: new Set(), view: null, pendingUser: null, flash: null };
 /* 右栏固定用真实 iframe 嵌入 agent 正在操作的页面，点击/输入都是浏览器原生行为。 */
 const preview = { tabId: null, url: "", title: "", at: 0, embeddable: false };
 
@@ -353,6 +353,34 @@ function renderActivity(view, turn) {
    整块 innerHTML 重写会把文本选中、滚动和已解码的截图全部推倒重来，看着就是一直在闪。 */
 const renderedTurns = new Map(); // turnId -> { node, html }
 let renderedConversationId = null;
+/* 还没被 /session 确认的临时条目：刚发出的一句话、以及发送失败的提示。
+   它们必须走同一条渲染通道，否则会留下渲染函数不认识的游离节点——
+   旧的整块 innerHTML 重写会把这种节点顺手冲掉，增量渲染不会，于是同一句话会显示两遍。 */
+function countUserText(view, text) {
+  return (view?.messages ?? []).filter((m) => m.role === "user" && m.text === text).length;
+}
+
+function extraTurns(view) {
+  const extras = [];
+  const pending = state.pendingUser;
+  if (pending) {
+    // 服务器视图里已经出现这条消息就退场，别和正式 turn 叠在一起。
+    if (countUserText(view, pending.text) > (pending.seen ?? 0)) state.pendingUser = null;
+    else extras.push({
+      key: "pending",
+      html: `<div class="block user">${metaRow("user", pending.at)}` +
+        `<div class="body user">${pretty(pending.text)}</div></div>`,
+    });
+  }
+  if (state.flash) {
+    extras.push({
+      key: "flash",
+      html: `<div class="block assistant"><div class="body assistant">${esc(state.flash)}</div></div>`,
+    });
+  }
+  return extras;
+}
+
 function renderMessages(view) {
   const box = $("messages");
   const messages = view?.messages ?? [];
@@ -363,14 +391,21 @@ function renderMessages(view) {
     box.innerHTML = "";
     box.dataset.empty = "0";
   }
-  if (!messages.length) {
+  const extras = extraTurns(view);
+  if (!messages.length && !extras.length) {
     if (box.dataset.empty === "1") return;
+    renderedTurns.clear();
     box.dataset.empty = "1";
     box.innerHTML = '<div class="empty">把要做的事说清楚，Kestrel 会自己调用工具、操作浏览器。</div>';
     return;
   }
+  // 从空态切到有内容：占位符必须先清掉，否则它会一直留在第一条消息上面。
   // 每次赋值都会产生一次 attribute mutation，值没变就别写。
-  if (box.dataset.empty !== "0") box.dataset.empty = "0";
+  if (box.dataset.empty === "1") {
+    box.dataset.empty = "0";
+    box.innerHTML = "";
+    renderedTurns.clear();
+  }
   const turns = groupTurns(messages).map((turn) => {
     const parts = [];
     for (const message of turn.users) {
@@ -385,6 +420,8 @@ function renderMessages(view) {
     }
     return { key: turn.turnId, html: parts.join("") };
   });
+  // 临时条目（刚发出的一句、失败提示）排在正式 turn 之后，同样走增量渲染。
+  for (const extra of extras) turns.push(extra);
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   const alive = new Set(turns.map((turn) => turn.key));
   for (const [key, entry] of renderedTurns) {
@@ -479,6 +516,7 @@ async function refresh() {
   const query = state.conversationId ? `?conversationId=${encodeURIComponent(state.conversationId)}` : "";
   const view = await api(`/session${query}`);
   if (view?.conversationId && view.conversationId !== state.conversationId) state.conversationId = view.conversationId;
+  state.view = view; // send() 里发出消息后要立刻重绘临时条目，需要手上有一份最新视图。
   renderMessages(view);
   renderTask(view);
   const status = view?.status ?? "idle";
@@ -541,9 +579,11 @@ async function send(event) {
   state.busy = true;
   $("send").disabled = true;
   input.value = "";
-  $("messages").insertAdjacentHTML("beforeend",
-    `<div class="turn"><div class="block user">${metaRow("user", new Date().toISOString())}` +
-    `<div class="body user">${pretty(text)}</div></div></div>`);
+  // 刚发出的这句话也交给 renderMessages 画成临时 turn，不再直接往 DOM 里插节点：
+  // 增量渲染只认识自己缓存的 turn，野生节点会一直留到下次刷新，看起来就是同一句话出现两次。
+  state.flash = null;
+  state.pendingUser = { text, at: new Date().toISOString(), seen: countUserText(state.view, text) };
+  renderMessages(state.view);
   $("messages").scrollTop = $("messages").scrollHeight;
   $("status").textContent = "运行中";
   $("status").className = "status busy";
@@ -556,12 +596,12 @@ async function send(event) {
     });
     if (reply?.conversationId) state.conversationId = reply.conversationId;
     if (reply?.stopReason?.kind === "error") {
-      $("messages").insertAdjacentHTML("beforeend",
-        `<div class="block assistant"><div class="body assistant">错误：${esc(reply.stopReason.faultCode || "unknown")}</div></div>`);
+      state.flash = `错误：${reply.stopReason.faultCode || "unknown"}`;
+      renderMessages(state.view);
     }
   } catch (error) {
-    $("messages").insertAdjacentHTML("beforeend",
-      `<div class="block assistant"><div class="body assistant">请求失败：${esc(error)}</div></div>`);
+    state.flash = `请求失败：${error}`;
+    renderMessages(state.view);
   } finally {
     state.busy = false;
     $("send").disabled = false;
