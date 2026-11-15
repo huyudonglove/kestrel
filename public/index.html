@@ -201,10 +201,8 @@
       </div>
       <div class="composer-bar">
         <button class="chip" type="button" id="cnew">＋ 新会话</button>
-        <span class="chip" id="modelChip">agent</span>
-        <span class="chip" id="modeChip">Agent</span>
         <span class="spacer"></span>
-        <span class="hint">⌘↵ 发送</span>
+        <span class="hint">↵ 发送 · Shift+↵ 换行</span>
       </div>
     </form>
   </section>
@@ -351,42 +349,71 @@ function renderActivity(view, turn) {
     `<div class="act-body">${rows}</div></div>`;
 }
 
-let lastMessagesHTML = null;
+/* 消息区按 turn 增量更新：只重建内容变化的那个 turn，其余节点原地保留。
+   整块 innerHTML 重写会把文本选中、滚动和已解码的截图全部推倒重来，看着就是一直在闪。 */
+const renderedTurns = new Map(); // turnId -> { node, html }
+let renderedConversationId = null;
 function renderMessages(view) {
   const box = $("messages");
   const messages = view?.messages ?? [];
-  const html = !messages.length
-    ? '<div class="empty">把要做的事说清楚，Kestrel 会自己调用工具、操作浏览器。</div>'
-    : groupTurns(messages).map((turn) => {
-      const parts = [];
-      for (const message of turn.users) {
-        parts.push(`<div class="block user">${metaRow("user", message.at)}` +
-          `<div class="body user">${pretty(message.text)}</div></div>`);
-      }
-      if (turn.tools.length) parts.push(renderActivity(view, turn));
-      for (const message of turn.replies) {
-        const seconds = message.durationMs ? `${Math.max(1, Math.round(message.durationMs / 1000))}s` : "";
-        parts.push(`<div class="block assistant">${metaRow("assistant", message.at ?? turn.at, seconds)}` +
-          `<div class="body assistant md">${md(message.text)}</div></div>`);
-      }
-      return `<div class="turn">${parts.join("")}</div>`;
-    }).join("");
-  // 轮询期间数据没变就不要重写 DOM：整块 innerHTML 会把消息里的截图 <img>
-  // 和折叠中的活动行一起重新创建一遍，视觉上就是一闪一闪。
-  if (html === lastMessagesHTML) return;
-  lastMessagesHTML = html;
-  // 即使内容变了（agent 每步都会追加工具行），也不能让已解码的截图重新走一遍
-  // 空白 -> 解码 -> 绘制；按 src 把旧的 <img> 节点搬到新结构里复用位图。
-  const reused = new Set();
-  const loaded = new Map();
-  for (const img of box.querySelectorAll("img.shot")) {
-    const src = img.getAttribute("src");
-    if (src && img.complete && img.naturalWidth > 0) loaded.set(src, img);
+  if (view?.conversationId !== renderedConversationId) {
+    // 换会话时 turnId 会重复（各自从 tn_01 开始），必须整体换掉缓存。
+    renderedConversationId = view?.conversationId ?? null;
+    renderedTurns.clear();
+    box.innerHTML = "";
+    box.dataset.empty = "0";
   }
+  if (!messages.length) {
+    if (box.dataset.empty === "1") return;
+    box.dataset.empty = "1";
+    box.innerHTML = '<div class="empty">把要做的事说清楚，Kestrel 会自己调用工具、操作浏览器。</div>';
+    return;
+  }
+  // 每次赋值都会产生一次 attribute mutation，值没变就别写。
+  if (box.dataset.empty !== "0") box.dataset.empty = "0";
+  const turns = groupTurns(messages).map((turn) => {
+    const parts = [];
+    for (const message of turn.users) {
+      parts.push(`<div class="block user">${metaRow("user", message.at)}` +
+        `<div class="body user">${pretty(message.text)}</div></div>`);
+    }
+    if (turn.tools.length) parts.push(renderActivity(view, turn));
+    for (const message of turn.replies) {
+      const seconds = message.durationMs ? `${Math.max(1, Math.round(message.durationMs / 1000))}s` : "";
+      parts.push(`<div class="block assistant">${metaRow("assistant", message.at ?? turn.at, seconds)}` +
+        `<div class="body assistant md">${md(message.text)}</div></div>`);
+    }
+    return { key: turn.turnId, html: parts.join("") };
+  });
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-  box.innerHTML = html;
-  if (loaded.size) {
-    for (const img of [...box.querySelectorAll("img.shot")]) {
+  const alive = new Set(turns.map((turn) => turn.key));
+  for (const [key, entry] of renderedTurns) {
+    if (alive.has(key)) continue;
+    entry.node.remove();
+    renderedTurns.delete(key);
+  }
+  for (const { key, html } of turns) {
+    let entry = renderedTurns.get(key);
+    if (entry && entry.html === html) continue;
+    if (!entry) {
+      const node = document.createElement("div");
+      node.className = "turn";
+      box.appendChild(node);
+      entry = { node, html: "" };
+      renderedTurns.set(key, entry);
+    }
+    const node = entry.node;
+    // 只重绘变化的 turn，但截图仍要按 src 把已解码的 <img> 节点搬回来复用位图。
+    const loaded = new Map();
+    for (const img of node.querySelectorAll("img.shot")) {
+      const src = img.getAttribute("src");
+      if (src && img.complete && img.naturalWidth > 0) loaded.set(src, img);
+    }
+    entry.html = html;
+    node.innerHTML = html;
+    if (!loaded.size) continue;
+    const reused = new Set();
+    for (const img of [...node.querySelectorAll("img.shot")]) {
       const old = loaded.get(img.getAttribute("src"));
       if (old && old !== img && !reused.has(old)) { reused.add(old); img.replaceWith(old); }
     }
@@ -412,21 +439,37 @@ function toggleActivity(head) {
     : `思考了${seconds ? ` ${seconds}s` : ""} · ${count} 步`;
 }
 
+let renderedTaskHTML = null;
 function renderTask(view) {
   const node = $("task");
   const task = view?.task?.task;
-  if (!task || !task.items?.length) { node.className = ""; node.innerHTML = ""; return; }
-  node.className = "show";
-  node.innerHTML = `<b>${esc(task.title || task.id)}</b> · ` + task.items.map((item) =>
+  if (!task || !task.items?.length) {
+    if (renderedTaskHTML === "") return;
+    renderedTaskHTML = "";
+    node.className = "";
+    node.innerHTML = "";
+    return;
+  }
+  const html = `<b>${esc(task.title || task.id)}</b> · ` + task.items.map((item) =>
     `<span class="step ${esc(item.status)}">${item.status === "done" ? "✓" : item.status === "doing" ? "▸" : "·"} ${esc(item.text)}</span>`
   ).join("");
+  // 任务条在 running 时每 900ms 重画一次；内容没变就别碰 DOM，否则步骤条会周期性闪。
+  if (html === renderedTaskHTML) return;
+  renderedTaskHTML = html;
+  node.className = "show";
+  node.innerHTML = html;
 }
 
+let renderedConversationsHTML = null;
 function renderConversations(items, current) {
   const panel = $("convPanel");
-  panel.innerHTML = (items ?? []).map((item) =>
+  const html = (items ?? []).map((item) =>
     `<div class="item ${item.conversationId === current ? "active" : ""}" data-id="${esc(item.conversationId)}">${esc(item.preview || item.conversationId)}</div>`
   ).join("") || '<div class="item">还没有会话</div>';
+  // 会话列表由 15 秒定时器无条件调用；内容没变就别重写，否则面板会周期性闪一下。
+  if (html === renderedConversationsHTML) return;
+  renderedConversationsHTML = html;
+  panel.innerHTML = html;
   for (const node of panel.querySelectorAll(".item[data-id]")) {
     node.addEventListener("click", () => { openConversation(node.dataset.id); panel.classList.remove("show"); });
   }
@@ -441,8 +484,12 @@ async function refresh() {
   const status = view?.status ?? "idle";
   const busy = status === "running";
   const failed = status === "failed";
-  $("status").textContent = busy ? "运行中" : failed ? "上一轮出错" : "空闲";
-  $("status").className = busy ? "status busy" : failed ? "status warn" : "status";
+  const statusNode = $("status");
+  const statusText = busy ? "运行中" : failed ? "上一轮出错" : "空闲";
+  const statusClass = busy ? "status busy" : failed ? "status warn" : "status";
+  // 状态徽标每轮都刷，值没变就别动 DOM，否则它自己也会周期性闪。
+  if (statusNode.textContent !== statusText) statusNode.textContent = statusText;
+  if (statusNode.className !== statusClass) statusNode.className = statusClass;
   // 刷新页面（或换标签/重开）时这一轮可能还在跑：轮询必须自己恢复，
   // 否则左栏就停在上一次渲染，看起来像「没有回复了 / 会话丢了」。
   if (busy && !polling) startPolling();
@@ -483,7 +530,7 @@ function startPolling() {
       $("send").disabled = false;
       state.busy = false;
     }
-  }, 900);
+  }, 1200); // 改成增量渲染后，轮询慢一点不损观感，读盘和 DOM 抖动都更少。
 }
 
 async function send(event) {
@@ -638,7 +685,11 @@ function startPreviewPolling() { connectPreview(); }
 
 $("composer").addEventListener("submit", send);
 $("input").addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); send(); }
+  // Enter 直接发送；Shift+Enter 换行；输入法组词中的 Enter 交给输入法处理
+  // （Safari 确认组词时会报 isComposing=false，故再兜一层 keyCode 229）。
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+  event.preventDefault();
+  send();
 });
 $("messages").addEventListener("click", (event) => {
   const head = event.target.closest(".act-head");
@@ -655,11 +706,6 @@ $("popen").addEventListener("click", () => { if (preview.url) window.open(previe
   await loadConversations();
   setInterval(loadConversations, 15000);
   startPreviewPolling();
-  try {
-    const health = await api("/health");
-    const label = health?.model || health?.providerLabel || health?.provider;
-    if (typeof label === "string" && label) $("modelChip").textContent = label;
-  } catch { /* 拿不到模型名就保留默认芯片 */ }
 })();
 </script>
 </body>
