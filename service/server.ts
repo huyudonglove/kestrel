@@ -39,6 +39,41 @@ loadEnv();
 const embedCache = new Map<string, { embeddable: boolean; at: number }>();
 const EMBED_TTL_MS = 5 * 60_000;
 
+/* 私有地址（容器内 127.0.0.1:8123 之类）要经本服务 /preview/proxy 反代才能嵌进右栏，
+   但反代目标可能已经不在——容器重建后 agent 起的临时静态服务就消失了。这时如果照旧标
+   embeddable=true，iframe 里显示的就是代理返回的 502 错误原文（一坨 JSON）。所以反代前
+   先探一次可达性：拿到任意 HTTP 响应都算活着（4xx/5xx 也算，页面本身可能就是错误页），
+   只有连不上才判不可达，并给出原因让前端显示占位提示。结果同样缓存。 */
+const reachCache = new Map<string, { reachable: boolean; reason: string; at: number }>();
+
+async function probeReachable(target: string): Promise<{ reachable: boolean; reason: string }> {
+  const cached = reachCache.get(target);
+  if (cached && Date.now() - cached.at < EMBED_TTL_MS) {
+    return { reachable: cached.reachable, reason: cached.reason };
+  }
+  let result: { reachable: boolean; reason: string } = { reachable: false, reason: "preview_unreachable" };
+  try {
+    const response = await fetch(target, {
+      method: "GET",
+      redirect: "follow",
+      headers: { "user-agent": "Mozilla/5.0 (Kestrel preview probe)" },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (response.body) {
+      try { await response.body.cancel(); } catch { /* 只探可达性，正文丢弃 */ }
+    }
+    result = { reachable: true, reason: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    result = {
+      reachable: false,
+      reason: /ECONNREFUSED|Unable to connect|ECONNRESET/i.test(message) ? "preview_down" : "preview_unreachable",
+    };
+  }
+  reachCache.set(target, { ...result, at: Date.now() });
+  return result;
+}
+
 async function probeEmbeddable(target: string): Promise<boolean> {
   let parsed: URL;
   try {
@@ -396,11 +431,22 @@ export function createServer(options: ServeOptions = {}) {
         const origin = previewTarget(originRaw);
         if (!origin) return respond({ ok: false, error: "缺少或非法的预览源" }, 400);
         const target = joinPreviewUrl(origin, tail);
+        // 目标可能就是本服务自己的产物页（/artifact/...）：本服务除 /health 外都要口令，
+        // 反代时必须把口令带上，否则 iframe 里只会看到 401。
+        let proxyToSelf = false;
+        try {
+          const parsedTarget = new URL(target);
+          const selfPort = url.port || (url.protocol === "https:" ? "443" : "80");
+          proxyToSelf = parsedTarget.port === selfPort
+            && ["127.0.0.1", "localhost", "::1", "[::1]"].includes(parsedTarget.hostname);
+        } catch { proxyToSelf = false; }
+        const proxyHeaders: Record<string, string> = { "user-agent": "Mozilla/5.0 (Kestrel preview proxy)" };
+        if (proxyToSelf && accessToken()) proxyHeaders["x-kestrel-access-token"] = accessToken();
         try {
           const upstream = await fetch(target, {
             method: "GET",
             redirect: "follow",
-            headers: { "user-agent": "Mozilla/5.0 (Kestrel preview proxy)" },
+            headers: proxyHeaders,
             signal: AbortSignal.timeout(15000),
           });
           const headers = new Headers();
@@ -409,7 +455,24 @@ export function createServer(options: ServeOptions = {}) {
           // 目标页常带 X-Frame-Options / CSP frame-ancestors，代理后必须剥掉才能被同源 iframe 嵌入。
           return new Response(upstream.body, { status: upstream.status, headers });
         } catch (error) {
-          return respond({ ok: false, error: error instanceof Error ? error.message : String(error) }, 502);
+          const message = error instanceof Error ? error.message : String(error);
+          // 文档导航（iframe / 新标签直接加载）不能回 JSON：浏览器会把错误原文当页面显示，
+          // 用户看到的就是一坨 {"ok":false,...}。导航请求给可读 HTML，XHR 与子资源仍回 JSON。
+          const dest = request.headers.get("sec-fetch-dest") ?? "";
+          const accept = request.headers.get("accept") ?? "";
+          const isDocument = dest === "document" || dest === "iframe" || accept.includes("text/html");
+          if (isDocument) {
+            const html = `<!doctype html><meta charset="utf-8"><title>预览不可用</title>`
+              + `<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;`
+              + `font:14px/1.6 -apple-system,system-ui,sans-serif;color:#555;background:#fafafa;text-align:center">`
+              + `<div style="max-width:420px;padding:24px"><div style="font-size:15px;color:#333;margin-bottom:8px">预览目标已不可用</div>`
+              + `容器里那个临时服务已经不在了（多半随重启消失）。产物本身还在，点右上角「在新标签打开」查看。</div></body>`;
+            return new Response(html, {
+              status: 502,
+              headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+            });
+          }
+          return respond({ ok: false, error: message }, 502);
         }
       }
       // 右栏预览的目标页订阅：执行端只跟踪 agent 正在操作的页面并发 target 事件，
@@ -450,7 +513,18 @@ export function createServer(options: ServeOptions = {}) {
               const payload = { ...target, kind: "target" as const };
               const proxied = previewProxyUrl(target.url);
               if (proxied) {
-                send({ ...payload, originUrl: target.url, url: proxied, embeddable: true });
+                // 私有地址先探可达性再下发：目标还活着才让前端嵌 iframe，否则下发
+                // embeddable=false + reason，前端显示「预览目标已不可用」占位，
+                // 而不是把代理的 502 JSON 当页面渲染出来。
+                void probeReachable(target.url)
+                  .then((probe) => {
+                    if (probe.reachable) {
+                      send({ ...payload, originUrl: target.url, url: proxied, embeddable: true });
+                      return;
+                    }
+                    send({ ...payload, url: proxied, embeddable: false, reason: probe.reason });
+                  })
+                  .catch(() => send({ ...payload, url: proxied, embeddable: false, reason: "preview_probe_failed" }));
                 return;
               }
               void probeEmbeddable(target.url)

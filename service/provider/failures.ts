@@ -1,11 +1,12 @@
 import OpenAI from "openai";
 import { HttpIdleTimeoutError } from "../network/idle-fetch.ts";
 
-type FailureKind = "output_limit" | "refused" | "incomplete" | "invalid_response" | "server_error" | "rate_limit";
+type FailureKind = "output_limit" | "refused" | "incomplete" | "truncated" | "invalid_response" | "server_error" | "rate_limit";
 const policies = {
   output_limit: { faultCode: "provider_output_limit", retryable: false },
   refused: { faultCode: "provider_refused", retryable: false },
   incomplete: { faultCode: "provider_incomplete", retryable: false },
+  truncated: { faultCode: "provider_incomplete", retryable: true },
   invalid_response: { faultCode: "provider_invalid_response", retryable: true },
   server_error: { faultCode: "provider_error", retryable: true },
   rate_limit: { faultCode: "provider_error", retryable: true },

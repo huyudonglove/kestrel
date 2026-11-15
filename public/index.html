@@ -222,9 +222,18 @@
   </section>
 </div>
 <script>
-const state = { conversationId: null, busy: false, conversations: [], expanded: new Set(), view: null, pendingUser: null, flash: null };
+/* 会话归属记在这个浏览器本地：号由服务端分配（见 /conversations/new），浏览器自己记住。
+   刷新、换标签回到自己的会话；别人的浏览器拿的是别人那份号，互不影响。 */
+const CONV_KEY = "kestrel.conversationId";
+const storedConversationId = (() => { try { return localStorage.getItem(CONV_KEY) || null; } catch { return null; } })();
+const state = { conversationId: storedConversationId, busy: false, conversations: [], expanded: new Set(), view: null, pendingUser: null, flash: null };
+function rememberConversation(id) {
+  if (!id) return;
+  state.conversationId = id;
+  try { localStorage.setItem(CONV_KEY, id); } catch { /* 隐私模式下写不进去，退化为只在本页有效 */ }
+}
 /* 右栏固定用真实 iframe 嵌入 agent 正在操作的页面，点击/输入都是浏览器原生行为。 */
-const preview = { tabId: null, url: "", title: "", at: 0, embeddable: false };
+const preview = { tabId: null, url: "", title: "", at: 0, embeddable: false, reason: "" };
 
 const $ = (id) => document.getElementById(id);
 const esc = (text) => String(text ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -513,9 +522,19 @@ function renderConversations(items, current) {
 }
 
 async function refresh() {
-  const query = state.conversationId ? `?conversationId=${encodeURIComponent(state.conversationId)}` : "";
-  const view = await api(`/session${query}`);
-  if (view?.conversationId && view.conversationId !== state.conversationId) state.conversationId = view.conversationId;
+  // 这个浏览器还没有自己的号：让服务端分配一个。不先读全局指针，否则两个浏览器会落到同一个会话。
+  if (!state.conversationId) await createOwnConversation();
+  const wanted = state.conversationId;
+  const query = wanted ? `?conversationId=${encodeURIComponent(wanted)}` : "";
+  let view = await api(`/session${query}`);
+  // 号在服务端已经不存在（被删 / 数据目录重置）时，服务端会退回全局指针上的会话；这里同样改为自己新建。
+  if (view?.conversationId && view.conversationId !== wanted) {
+    await createOwnConversation();
+    if (state.conversationId) {
+      const own = await api(`/session?conversationId=${encodeURIComponent(state.conversationId)}`);
+      if (own) view = own;
+    }
+  }
   state.view = view; // send() 里发出消息后要立刻重绘临时条目，需要手上有一份最新视图。
   renderMessages(view);
   renderTask(view);
@@ -540,18 +559,24 @@ async function loadConversations() {
   renderConversations(state.conversations, state.conversationId);
 }
 
+/* 服务端分配会话号（conversation-id.json 有水位线，删掉的号不会重发），记到这个浏览器本地。 */
+async function createOwnConversation() {
+  const data = await api("/conversations/new", { method: "POST", body: "{}" });
+  const id = data?.conversationId ?? data?.session?.conversationId ?? null;
+  if (id) rememberConversation(id);
+  return id;
+}
+
 async function openConversation(conversationId) {
   if (!conversationId) return;
   await api("/conversations/open", { method: "POST", body: JSON.stringify({ conversationId }) });
-  state.conversationId = conversationId;
+  rememberConversation(conversationId);
   await refresh();
   await loadConversations();
 }
 
 async function newConversation() {
-  const data = await api("/conversations/new", { method: "POST", body: "{}" });
-  const id = data?.conversationId ?? data?.session?.conversationId ?? null;
-  state.conversationId = id;
+  await createOwnConversation();
   await refresh();
   await loadConversations();
 }
@@ -594,7 +619,7 @@ async function send(event) {
       method: "POST",
       body: JSON.stringify({ conversationId: state.conversationId ?? undefined, userInput: text }),
     });
-    if (reply?.conversationId) state.conversationId = reply.conversationId;
+    if (reply?.conversationId) rememberConversation(reply.conversationId);
     if (reply?.stopReason?.kind === "error") {
       state.flash = `错误：${reply.stopReason.faultCode || "unknown"}`;
       renderMessages(state.view);
@@ -625,15 +650,29 @@ function frameEl() {
   return frame;
 }
 
+/* 右栏不可嵌入有两种原因：站方禁止被框（X-Frame-Options / CSP），
+   或者目标页本身已经不在了（容器里 agent 起的临时服务随重启消失）。后者必须单独说明，
+   否则用户只会看到代理返回的错误页。 */
+function previewDown() {
+  return preview.reason === "preview_down"
+    || preview.reason === "preview_unreachable"
+    || preview.reason === "preview_probe_failed";
+}
+
 function syncHint() {
-  $("phint").textContent = preview.embeddable ? "可直接点击 / 输入操作" : "该站点禁止被嵌入";
+  $("phint").textContent = previewDown()
+    ? "预览目标已不可用"
+    : (preview.embeddable ? "可直接点击 / 输入操作" : "该站点禁止被嵌入");
 }
 
 function renderPreviewStage() {
   if (!preview.url) return;
   const stage = $("pstage");
   if (!preview.embeddable) {
-    stage.innerHTML = '<div class="placeholder">这个站点不允许被嵌入（X-Frame-Options / CSP），右栏无法直接显示。点右上角「在新标签打开」可以看。</div>';
+    const text = previewDown()
+      ? "预览目标已不可用：agent 之前打开的临时服务已经不在了（多半随容器重启消失）。产物本身还在，点右上角「在新标签打开」查看。"
+      : "这个站点不允许被嵌入（X-Frame-Options / CSP），右栏无法直接显示。点右上角「在新标签打开」可以看。";
+    stage.innerHTML = `<div class="placeholder">${esc(text)}</div>`;
     return;
   }
   const frame = frameEl();
@@ -658,8 +697,10 @@ function setPreviewMeta(data) {
   preview.at = data.at;
   const embedChanged = typeof data.embeddable === "boolean" && data.embeddable !== preview.embeddable;
   if (typeof data.embeddable === "boolean") preview.embeddable = data.embeddable;
+  const reasonChanged = typeof data.reason === "string" && data.reason !== preview.reason;
+  if (typeof data.reason === "string") preview.reason = data.reason;
   if (!changed) {
-    if (embedChanged) { syncHint(); renderPreviewStage(); }
+    if (embedChanged || reasonChanged) { syncHint(); renderPreviewStage(); }
     return;
   }
   $("pdot").className = "dot live";

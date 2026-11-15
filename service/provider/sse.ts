@@ -1,5 +1,5 @@
 /** Parse an SSE byte stream into `data:` payloads (JSON strings). */
-export async function* sseDataEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+export async function* sseDataEvents(body: ReadableStream<Uint8Array>, state?: { done?: boolean }): AsyncGenerator<string> {
   const decoder = new TextDecoder();
   const reader = body.getReader();
   let buffer = "";
@@ -14,7 +14,10 @@ export async function* sseDataEvents(body: ReadableStream<Uint8Array>): AsyncGen
         buffer = buffer.slice(newline + 1);
         if (line.startsWith("data:")) {
           const data = line.slice(5).trimStart();
-          if (data === "[DONE]") return;
+          if (data === "[DONE]") {
+            if (state) state.done = true;
+            return;
+          }
           if (data) yield data;
         }
         newline = buffer.indexOf("\n");

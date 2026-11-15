@@ -32,6 +32,9 @@ export function resolveProxy(env: Record<string, string | undefined>) {
   return address;
 }
 
+/** 半截流会重发整段上下文且上游可能再拖约 100s，单独限次，不吃满通用重试。 */
+const TRUNCATION_RETRY_LIMIT = 3;
+
 const stoppedResult = (attempts: number): CompletionResult => ({
   finish: "error",
   content: "",
@@ -157,7 +160,8 @@ export function createProvider(config: ProviderConfig = {}) {
     let finish: string | null = null;
     let refusal = false;
     const callAcc = new Map<number, AccCall>();
-    for await (const data of sseDataEvents(rawResponse.body)) {
+    const streamState: { done?: boolean } = {};
+    for await (const data of sseDataEvents(rawResponse.body, streamState)) {
       const chunk = JSON.parse(data) as {
         choices?: {
           delta?: {
@@ -185,6 +189,10 @@ export function createProvider(config: ProviderConfig = {}) {
       }
       if (choice?.finish_reason) finish = choice.finish_reason;
     }
+    // 没有 [DONE] 说明这条流被上游中途掐断，正文只是半截，不能当正常结束返回。
+    if (!streamState.done) {
+      throw new ProviderFailure("truncated", `chat_stream_incomplete: finish=${finish ?? "missing"}; chars=${content.length}`);
+    }
     if (refusal || finish === "content_filter") throw new ProviderFailure("refused", "chat_content_refused");
     if (finish === "length") throw new ProviderFailure("output_limit", "chat_output_limit");
     if (!["stop", "tool_calls"].includes(finish ?? "")) throw new ProviderFailure("invalid_response", `chat_unexpected_finish: ${finish ?? "missing"}`);
@@ -207,6 +215,7 @@ export function createProvider(config: ProviderConfig = {}) {
     complete: async (input: CompletionInput): Promise<CompletionResult> => {
       let lastError: unknown;
       let attempts = 0;
+      let truncations = 0;
       let toolChoice = input.toolChoice;
       for (let attempt = 1; attempt <= runtimeConfig.network.maxAttempts; attempt++) {
         if (input.signal?.aborted) return stoppedResult(attempts);
@@ -262,6 +271,11 @@ export function createProvider(config: ProviderConfig = {}) {
           }
           lastError = error;
           if (!classifyProviderFailure(error).retryable || attempt === runtimeConfig.network.maxAttempts) break;
+          // 半截流要重发整段上下文、上游还会拖到约 100s 才断，单独限次，避免吃满全部通用重试。
+          if (error instanceof ProviderFailure && error.kind === "truncated") {
+            truncations += 1;
+            if (truncations >= TRUNCATION_RETRY_LIMIT) break;
+          }
           try {
             await sleep(runtimeConfig.network.retryDelayMs, undefined, { signal: input.signal });
           } catch (waitError) {
